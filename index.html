@@ -92,12 +92,12 @@ button{cursor:pointer;transition:all .15s}
 #app.visible{display:flex}
 
 /* ═══════════════ TOP NAV ═══════════════ */
-.topnav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 1.5rem;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow2)}
-.nav-brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:-.3px;flex-shrink:0}
-.nav-brand-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--accent),#7b6ef8);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.topnav{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 1rem;height:56px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50;box-shadow:var(--shadow2);overflow:hidden}
+.nav-brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;letter-spacing:-.3px;flex-shrink:0}
+.nav-brand-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),#7b6ef8);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px}
 .nav-divider{width:1px;height:28px;background:var(--border);flex-shrink:0}
 .board-tabs{display:flex;gap:4px;padding:4px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border)}
-.board-tab{display:flex;align-items:center;gap:7px;padding:5px 14px;border-radius:var(--radius-xs);border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:500;color:var(--text2);transition:all .15s}
+.board-tab{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:var(--radius-xs);border:none;background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--text2);transition:all .15s}
 .board-tab:hover{background:var(--bg4);color:var(--text)}
 .board-tab.active-m{background:var(--accent-bg);color:var(--accent);box-shadow:var(--shadow2)}
 .board-tab.active-e{background:var(--green-bg);color:var(--green);box-shadow:var(--shadow2)}
@@ -105,14 +105,14 @@ button{cursor:pointer;transition:all .15s}
 .tab-badge{font-size:10px;padding:1px 6px;border-radius:10px;font-weight:600}
 .badge-m{background:var(--accent-bg2);color:var(--accent)}
 .badge-e{background:var(--green-bg);color:var(--green)}
-.nav-spacer{flex:1}
+.nav-spacer{flex:1;min-width:8px}
 .nav-clock{display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0}
-.nav-time{font-size:18px;font-weight:700;letter-spacing:-.5px;line-height:1;font-variant-numeric:tabular-nums}
-.nav-date{font-size:11px;color:var(--text3);line-height:1.4}
-.nav-actions{display:flex;gap:6px;align-items:center}
-.nav-btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--radius-xs);border:1px solid var(--border);background:transparent;color:var(--text2);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.nav-time{font-size:16px;font-weight:700;letter-spacing:-.5px;line-height:1;font-variant-numeric:tabular-nums}
+.nav-date{font-size:10px;color:var(--text3);line-height:1.4}
+.nav-actions{display:flex;gap:4px;align-items:center;flex-shrink:0}
+.nav-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--radius-xs);border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
 .nav-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border2)}
-.nav-btn i{font-size:15px}
+.nav-btn i{font-size:14px}
 .nav-btn.danger{color:var(--red);border-color:var(--red-bg)}
 .nav-btn.danger:hover{background:var(--red-bg)}
 .nav-btn.excel{color:var(--green);border-color:var(--green-bg)}
@@ -121,7 +121,7 @@ button{cursor:pointer;transition:all .15s}
 .nav-btn.wand:hover{background:var(--amber-bg)}
 .nav-btn.primary{background:linear-gradient(135deg,var(--accent),#7b6ef8);color:#fff;border-color:transparent;box-shadow:0 3px 12px var(--accent)30}
 .nav-btn.primary:hover{opacity:.9;box-shadow:0 4px 16px var(--accent)40}
-.theme-btn{width:34px;height:34px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-xs);border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:17px;transition:all .15s}
+.theme-btn{width:30px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:var(--radius-xs);border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-size:15px;transition:all .15s}
 .theme-btn:hover{background:var(--bg3);color:var(--text)}
 
 /* ═══════════════ BOARD HEADER ═══════════════ */
