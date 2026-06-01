@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Заявки</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh}
@@ -35,6 +36,10 @@ button{cursor:pointer}
 .btn-primary{background:#1a3a6e;color:#4f8ef7;border-color:#4f8ef7}
 .btn-primary:hover{background:#1e4080}
 .btn-green{background:#1a3a2d;color:#4ade80;border-color:#4ade80}
+.btn-danger{background:#3b1a1a;color:#f87171;border-color:#ef4444}
+.btn-danger:hover{background:#4a1a1a}
+.btn-excel{background:#1a3a1a;color:#4ade80;border-color:#22c55e}
+.btn-excel:hover{background:#1e4a1e}
 .board-header{display:flex;align-items:center;gap:10px;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid #2d3348;flex-wrap:wrap}
 .board-name{font-size:18px;font-weight:600}
 .board-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
@@ -47,9 +52,14 @@ button{cursor:pointer}
 .stat-label{font-size:11px;color:#64748b;margin-bottom:3px}
 .stat-val{font-size:24px;font-weight:600}
 .filters{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
-.filters input{width:180px}
+.filters input{width:200px}
 .overdue-bar{background:#3b1a1a;border:1px solid #ef4444;border-radius:8px;padding:8px 14px;margin-bottom:1rem;font-size:13px;color:#f87171;display:none;align-items:center;gap:8px}
 .sync-info{font-size:12px;color:#64748b}
+.progress-bar{background:#1a1d2e;border:1px solid #2d3348;border-radius:8px;padding:12px 16px;margin-bottom:1rem;display:none;flex-direction:column;gap:8px}
+.progress-bar.show{display:flex}
+.progress-track{background:#2d3348;border-radius:4px;height:6px;overflow:hidden}
+.progress-fill{background:#4f8ef7;height:100%;border-radius:4px;transition:width .3s}
+.progress-text{font-size:13px;color:#94a3b8}
 .kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start}
 .col{background:#1a1d2e;border:1px solid #2d3348;border-radius:10px;padding:10px;min-height:200px}
 .col-new-style{border-style:dashed}
@@ -59,71 +69,59 @@ button{cursor:pointer}
 .dot-gray{background:#64748b}.dot-blue{background:#4f8ef7}.dot-amber{background:#f59e0b}.dot-green{background:#4ade80}
 .col-count{font-size:12px;color:#64748b;background:#0f1117;border:1px solid #2d3348;border-radius:10px;padding:1px 8px}
 .col.drag-active{border-color:#4f8ef7;background:#1a2540}
-
-/* TICKET — новый дизайн под структурированные заявки */
-.ticket{background:#0f1117;border:1px solid #2d3348;border-radius:8px;padding:0;margin-bottom:8px;cursor:grab;transition:border-color .15s;overflow:hidden}
+.ticket{background:#0f1117;border:1px solid #2d3348;border-radius:8px;margin-bottom:6px;transition:border-color .15s;overflow:hidden}
 .ticket:hover{border-color:#3d4466}
-.ticket:active{cursor:grabbing;opacity:.7}
-.ticket.overdue{border-color:#ef4444}
-.ticket.status-new{border-color:#f59e0b}
-.ticket.from-rc{border-left:3px solid #4f8ef7}
-.ticket.from-rc.board-e{border-left-color:#4ade80}
-
-.ticket-head{background:#1a1d2e;padding:8px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:6px;border-bottom:1px solid #2d3348}
-.ticket-num{font-size:13px;font-weight:700;color:#4f8ef7;cursor:pointer;line-height:1.3}
-.ticket-num:hover{color:#7ab3ff}
-.ticket-date{font-size:11px;color:#64748b;white-space:nowrap;margin-top:2px}
-
-.ticket-body{padding:8px 10px;display:flex;flex-direction:column;gap:4px}
-.ticket-field{display:flex;gap:6px;font-size:12px;align-items:flex-start}
-.ticket-field-label{color:#64748b;min-width:72px;flex-shrink:0;padding-top:1px}
-.ticket-field-val{color:#e2e8f0;line-height:1.4;font-weight:500}
-.ticket-field-val.highlight{color:#f59e0b}
-
-.ticket-footer{padding:6px 10px;border-top:1px solid #2d3348;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px}
-.ticket-meta{display:flex;align-items:center;gap:6px;font-size:11px;color:#64748b;flex-wrap:wrap}
-.ticket-actions{display:flex;gap:2px}
-.icon-btn{background:none;border:none;cursor:pointer;padding:3px 4px;border-radius:5px;color:#64748b;font-size:15px;transition:all .15s}
-.icon-btn:hover{background:#1e2130;color:#e2e8f0}
-
-.stan-badge{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600}
-.stan-new{background:#2d1f0a;color:#f59e0b}
-.stan-active{background:#1a2d4a;color:#4f8ef7}
-.stan-pause{background:#1e2130;color:#94a3b8}
-.stan-done{background:#1a3a2d;color:#4ade80}
-
-.accept-btn{font-size:11px;padding:3px 10px;border:1px solid #4f8ef7;border-radius:6px;background:#1a3a6e;color:#4f8ef7;cursor:pointer}
+.ticket.overdue{border-left:3px solid #ef4444}
+.ticket.status-new{border-left:3px solid #f59e0b}
+.ticket.status-active{border-left:3px solid #4f8ef7}
+.ticket.status-pause{border-left:3px solid #64748b}
+.ticket.status-done{border-left:3px solid #4ade80}
+.ticket-compact{display:flex;align-items:center;gap:8px;padding:9px 10px;cursor:pointer;user-select:none}
+.ticket-compact:hover .ticket-num{color:#4f8ef7}
+.ticket-drag-handle{color:#2d3348;font-size:14px;cursor:grab;flex-shrink:0}
+.ticket-drag-handle:hover{color:#64748b}
+.ticket-num{font-size:13px;font-weight:600;color:#e2e8f0;flex:1;line-height:1.3}
+.ticket-arrow{font-size:14px;color:#64748b;transition:transform .2s;flex-shrink:0}
+.ticket-arrow.open{transform:rotate(90deg)}
+.sbadge{font-size:11px;padding:2px 8px;border-radius:8px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.sb-new{background:#2d1f0a;color:#f59e0b}
+.sb-active{background:#1a2d4a;color:#4f8ef7}
+.sb-pause{background:#1e2130;color:#94a3b8}
+.sb-done{background:#1a3a2d;color:#4ade80}
+.ticket-expanded{display:none;border-top:1px solid #1e2130;padding:10px}
+.ticket-expanded.open{display:block}
+.exp-row{display:flex;gap:8px;font-size:12px;margin-bottom:5px;align-items:flex-start}
+.exp-label{color:#64748b;min-width:80px;flex-shrink:0;padding-top:1px}
+.exp-val{color:#e2e8f0;line-height:1.5;font-weight:500}
+.exp-val.yellow{color:#f59e0b}
+.exp-val.red{color:#f87171}
+.exp-val.muted{color:#94a3b8;font-weight:400}
+.exp-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.accept-btn{font-size:11px;padding:4px 12px;border:1px solid #4f8ef7;border-radius:6px;background:#1a3a6e;color:#4f8ef7;cursor:pointer}
 .accept-btn:hover{background:#1e4080}
+.icon-btn{background:none;border:none;cursor:pointer;padding:3px 5px;border-radius:5px;color:#64748b;font-size:15px}
+.icon-btn:hover{background:#1e2130;color:#e2e8f0}
+.exp-comment-section{margin-top:10px;border-top:1px solid #1e2130;padding-top:8px}
+.exp-comments{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;max-height:120px;overflow-y:auto}
+.exp-comment{background:#1a1d2e;border-radius:6px;padding:7px 9px}
+.exp-comment-header{display:flex;justify-content:space-between;margin-bottom:3px}
+.exp-comment-author{font-size:12px;font-weight:500}
+.exp-comment-date{font-size:11px;color:#64748b}
+.exp-comment-text{font-size:12px;color:#94a3b8;line-height:1.4}
+.exp-comment-input{display:flex;gap:6px;margin-top:4px}
+.exp-comment-input input{flex:1;font-size:12px;padding:5px 8px}
+.exp-comment-input button{font-size:12px;padding:5px 10px}
 .empty-col{text-align:center;padding:1.5rem .5rem;font-size:12px;color:#475569}
 .empty-col i{font-size:28px;display:block;margin-bottom:8px;opacity:.3}
-
-/* MODALS */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);align-items:flex-start;justify-content:center;padding:2rem 1rem;z-index:100;overflow-y:auto}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);align-items:flex-start;justify-content:center;padding:2rem 1rem;z-index:100;overflow-y:auto}
 .modal-bg.open{display:flex}
 .modal{background:#1a1d2e;border:1px solid #2d3348;border-radius:12px;padding:1.5rem;width:100%;max-width:520px;display:flex;flex-direction:column;gap:12px;margin-top:1rem}
 .modal-title{font-size:17px;font-weight:600}
 .field{display:flex;flex-direction:column;gap:5px}
 .field label{font-size:13px;color:#94a3b8}
 .field input,.field textarea,.field select{width:100%;font-size:14px}
-.field textarea{resize:vertical;min-height:64px}
+.field textarea{resize:vertical;min-height:60px}
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:4px}
-
-/* detail modal — показываем как оригинальный документ */
-.doc-view{background:#0f1117;border:1px solid #2d3348;border-radius:8px;padding:1rem;display:flex;flex-direction:column;gap:6px}
-.doc-title{font-size:15px;font-weight:700;color:#4f8ef7;margin-bottom:4px}
-.doc-row{display:flex;gap:8px;font-size:14px}
-.doc-label{color:#64748b;min-width:100px;flex-shrink:0}
-.doc-val{color:#e2e8f0;font-weight:500}
-
-.comments-section{border-top:1px solid #2d3348;padding-top:12px;display:flex;flex-direction:column;gap:10px}
-.comment{background:#0f1117;border:1px solid #2d3348;border-radius:8px;padding:10px}
-.comment-header{display:flex;justify-content:space-between;margin-bottom:4px}
-.comment-author{font-size:13px;font-weight:500}
-.comment-date{font-size:12px;color:#64748b}
-.comment-text{font-size:13px;color:#94a3b8;line-height:1.5}
-.comment-input-row{display:flex;gap:8px}
-.comment-input-row input{flex:1;font-size:13px}
-
 .tabs{display:flex;border-bottom:1px solid #2d3348;margin-bottom:12px}
 .tab{font-size:13px;padding:7px 14px;cursor:pointer;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-1px}
 .tab.active{color:#4f8ef7;border-bottom-color:#4f8ef7}
@@ -146,11 +144,11 @@ button{cursor:pointer}
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo"><i class="ti ti-layout-kanban"></i><span>Заявки</span></div>
-    <p class="hint">Введите пароль для доступа</p>
+    <p class="hint">Введіть пароль для доступу</p>
     <input type="password" id="pwd-input" placeholder="Пароль" style="width:100%">
-    <p class="err" id="pwd-err">Неверный пароль</p>
-    <button class="btn btn-primary" id="login-btn" style="width:100%;padding:10px 0;font-size:15px">Войти</button>
-    <p class="hint" style="text-align:center">Пароль по умолчанию: <strong>team2024</strong></p>
+    <p class="err" id="pwd-err">Невірний пароль</p>
+    <button class="btn btn-primary" id="login-btn" style="width:100%;padding:10px 0;font-size:15px">Увійти</button>
+    <p class="hint" style="text-align:center">Пароль за замовчуванням: <strong>team2024</strong></p>
   </div>
 </div>
 
@@ -169,10 +167,11 @@ button{cursor:pointer}
       </button>
     </div>
     <div class="hrow">
-      <button class="btn" id="sync-btn" onclick="syncBoard()"><i class="ti ti-refresh"></i> Обновить</button>
-      <button class="btn" id="export-btn"><i class="ti ti-download"></i> CSV</button>
-      <button class="btn" id="settings-btn"><i class="ti ti-settings"></i> Настройки</button>
-      <button class="btn btn-primary" id="add-btn"><i class="ti ti-plus"></i> Новая заявка</button>
+      <button class="btn" id="sync-btn" onclick="syncBoard()"><i class="ti ti-refresh"></i> Оновити</button>
+      <button class="btn btn-danger" id="reload-btn" onclick="confirmReload()"><i class="ti ti-refresh-alert"></i> Перезавантажити всі</button>
+      <button class="btn btn-excel" id="export-btn" onclick="exportXLSX()"><i class="ti ti-file-spreadsheet"></i> Excel</button>
+      <button class="btn" id="settings-btn"><i class="ti ti-settings"></i> Налаштування</button>
+      <button class="btn btn-primary" id="add-btn"><i class="ti ti-plus"></i> Нова заявка</button>
       <button class="btn" id="logout-btn"><i class="ti ti-logout"></i></button>
     </div>
   </div>
@@ -186,6 +185,11 @@ button{cursor:pointer}
     </div>
     <span class="sync-info" id="last-sync"></span>
     <span class="sync-info" id="auto-sync-info"></span>
+  </div>
+
+  <div class="progress-bar" id="progress-bar">
+    <div class="progress-text" id="progress-text">Завантаження...</div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
   </div>
 
   <div class="stats-row">
@@ -227,57 +231,33 @@ button{cursor:pointer}
   </div>
 </div>
 
-<!-- DETAIL MODAL -->
-<div class="modal-bg" id="detail-modal">
-  <div class="modal" style="max-width:540px">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <p class="modal-title" id="detail-heading">Заявка</p>
-      <button class="icon-btn" id="detail-close"><i class="ti ti-x"></i></button>
-    </div>
-    <div class="doc-view" id="detail-doc"></div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-primary" id="detail-accept" style="display:none"><i class="ti ti-check" style="font-size:13px"></i> Взяти в роботу</button>
-      <select id="detail-status-select" style="font-size:13px">
-        <option value="new">Без статусу</option>
-        <option value="active">В роботі</option>
-        <option value="pause">На паузі</option>
-        <option value="done">Закрито</option>
-      </select>
-      <button class="btn btn-primary" id="detail-status-save">Змінити статус</button>
-      <button class="icon-btn" id="detail-delete" style="margin-left:auto;color:#f87171"><i class="ti ti-trash"></i></button>
-    </div>
-    <div class="comments-section">
-      <p style="font-size:14px;font-weight:600">Коментарі</p>
-      <div id="comments-list"></div>
-      <div class="field"><label>Ваше ім'я</label><input type="text" id="c-author" placeholder="Ім'я" style="width:100%"></div>
-      <div class="comment-input-row">
-        <input type="text" id="c-text" placeholder="Додати коментар...">
-        <button class="btn btn-primary" id="c-send">Надіслати</button>
-      </div>
+<!-- CONFIRM MODAL -->
+<div class="modal-bg" id="confirm-modal">
+  <div class="modal" style="max-width:420px">
+    <p class="modal-title">⚠️ Перезавантажити всі заявки?</p>
+    <p style="font-size:14px;color:#94a3b8;line-height:1.6">Всі поточні заявки цієї дошки будуть <strong style="color:#f87171">видалені</strong> і завантажені заново з Rocket.Chat.<br><br>Коментарі які ви додавали вручну — також видаляться.<br><br>Продовжити?</p>
+    <div class="modal-footer">
+      <button class="btn" id="confirm-cancel">Скасувати</button>
+      <button class="btn btn-danger" id="confirm-ok">Так, перезавантажити</button>
     </div>
   </div>
 </div>
 
-<!-- ADD MANUAL MODAL -->
+<!-- ADD MODAL -->
 <div class="modal-bg" id="add-modal">
   <div class="modal">
     <p class="modal-title" id="modal-heading">Нова заявка</p>
     <div class="field"><label>Номер замовлення</label><input type="text" id="f-num" placeholder="№0106/4 - М"></div>
-    <div class="field"><label>Дата</label><input type="date" id="f-date"></div>
+    <div class="field"><label>Дата (від)</label><input type="text" id="f-date" placeholder="01.06.2026"></div>
     <div class="field"><label>Підстава</label><input type="text" id="f-pidstava" placeholder="Склад (Власні потреби)"></div>
-    <div class="field"><label>Виріб</label><input type="text" id="f-virib" placeholder="Назва виробу"></div>
+    <div class="field"><label>Виріб / Деталь</label><textarea id="f-virib" placeholder="Назва виробу або список деталей"></textarea></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
       <div class="field"><label>Кількість</label><input type="text" id="f-kilkist" placeholder="1 шт."></div>
       <div class="field"><label>Замовник</label><input type="text" id="f-zamovnyk" placeholder="Замовник"></div>
     </div>
-    <div class="field"><label>Термін</label><input type="date" id="f-termin"></div>
+    <div class="field"><label>Термін</label><input type="text" id="f-termin" placeholder="05.06.2026"></div>
     <div class="field"><label>Стан</label>
-      <select id="f-stan">
-        <option value="new">Без статусу</option>
-        <option value="active">В роботі</option>
-        <option value="pause">На паузі</option>
-        <option value="done">Закрито</option>
-      </select>
+      <select id="f-stan"><option value="new">Без статусу</option><option value="active">В роботі</option><option value="pause">На паузі</option><option value="done">Закрито</option></select>
     </div>
     <div class="modal-footer">
       <button class="btn" id="cancel-btn">Скасувати</button>
@@ -295,33 +275,27 @@ button{cursor:pointer}
       <div class="tab" id="stab-rc" onclick="switchSettingsTab('rc')">Rocket.Chat</div>
       <div class="tab" id="stab-keywords" onclick="switchSettingsTab('keywords')">Ключові слова</div>
     </div>
-
     <div id="spane-general">
       <div style="display:flex;flex-direction:column;gap:12px">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div class="field"><label>Назва дошки М</label><input type="text" id="s-name-m" placeholder="Канал М"></div>
-          <div class="field"><label>Назва дошки Е</label><input type="text" id="s-name-e" placeholder="Канал Е"></div>
+          <div class="field"><label>Назва дошки М</label><input type="text" id="s-name-m"></div>
+          <div class="field"><label>Назва дошки Е</label><input type="text" id="s-name-e"></div>
         </div>
         <div class="field"><label>Прострочено через (днів)</label><input type="number" id="s-days" min="1" max="60" style="width:90px"></div>
         <div class="field"><label>Автооновлення кожні (хвилин, 0=вимк)</label><input type="number" id="s-interval" min="0" max="60" style="width:90px"></div>
         <div style="border-top:1px solid #2d3348;padding-top:12px;font-size:14px;font-weight:600">Зміна паролю</div>
         <div class="field"><label>Поточний пароль</label><input type="password" id="s-old"></div>
         <div class="field"><label>Новий пароль</label><input type="password" id="s-new" placeholder="Мінімум 4 символи"></div>
-        <p class="err" id="s-err"></p>
-        <p class="ok-msg" id="s-ok">Збережено!</p>
+        <p class="err" id="s-err"></p><p class="ok-msg" id="s-ok">Збережено!</p>
       </div>
     </div>
-
     <div id="spane-rc" style="display:none">
       <div style="display:flex;flex-direction:column;gap:12px">
-        <div class="rc-box">
-          <strong>Ваш Cloudflare Worker:</strong><br>
-          <span style="font-size:12px;color:#4f8ef7;font-family:monospace">https://spring-wave-e2f9.ntc-meta-korpus-a.workers.dev</span>
-        </div>
-        <div class="field"><label>URL Cloudflare Worker (проксі)</label><input type="text" id="rc-proxy" placeholder="https://xxx.workers.dev"></div>
+        <div class="rc-box"><strong>Cloudflare Worker:</strong><br><span style="font-size:12px;color:#4f8ef7;font-family:monospace">https://spring-wave-e2f9.ntc-meta-korpus-a.workers.dev</span></div>
+        <div class="field"><label>URL Cloudflare Worker</label><input type="text" id="rc-proxy" placeholder="https://xxx.workers.dev"></div>
         <div style="font-size:13px;font-weight:600;color:#e2e8f0">Дошка М</div>
         <div class="field"><label>Адреса Rocket.Chat</label><input type="text" id="rc-host-m" placeholder="https://chat.ntcmeta.net"></div>
-        <div class="field"><label>Назва групи</label><input type="text" id="rc-room-m" placeholder="Zayavki-v-robotu-M"></div>
+        <div class="field"><label>Назва групи</label><input type="text" id="rc-room-m"></div>
         <div class="field"><label>User ID</label><input type="text" id="rc-uid-m"></div>
         <div class="field"><label>Token</label><input type="password" id="rc-token-m"></div>
         <div style="display:flex;gap:8px;align-items:center">
@@ -330,19 +304,18 @@ button{cursor:pointer}
         </div>
         <div style="font-size:13px;font-weight:600;color:#e2e8f0;padding-top:4px;border-top:1px solid #2d3348">Дошка Е</div>
         <div class="field"><label>Адреса Rocket.Chat</label><input type="text" id="rc-host-e" placeholder="https://chat.ntcmeta.net"></div>
-        <div class="field"><label>Назва групи</label><input type="text" id="rc-room-e" placeholder="Zayavki-v-robotu-E"></div>
+        <div class="field"><label>Назва групи</label><input type="text" id="rc-room-e"></div>
         <div class="field"><label>User ID</label><input type="text" id="rc-uid-e"></div>
         <div class="field"><label>Token</label><input type="password" id="rc-token-e"></div>
         <div style="display:flex;gap:8px;align-items:center">
           <button class="btn btn-green" onclick="testConnection('e')">Перевірити Е</button>
           <span id="test-e-result" style="font-size:13px"></span>
         </div>
-        <p class="ok-msg" id="rc-ok">Налаштування збережено!</p>
+        <p class="ok-msg" id="rc-ok">Збережено!</p>
       </div>
     </div>
-
     <div id="spane-keywords" style="display:none">
-      <p style="font-size:13px;color:#64748b;margin-bottom:10px">Якщо поле «Стан» містить ключове слово — статус визначається автоматично.</p>
+      <p style="font-size:13px;color:#64748b;margin-bottom:10px">Якщо «Стан:» містить ключове слово — статус визначається автоматично.</p>
       <table class="kw-table">
         <thead><tr><th>Слово</th><th>Статус</th><th></th></tr></thead>
         <tbody id="kw-body"></tbody>
@@ -354,7 +327,6 @@ button{cursor:pointer}
       </div>
       <p class="ok-msg" id="kw-ok" style="margin-top:8px">Збережено!</p>
     </div>
-
     <div class="modal-footer">
       <button class="btn" id="settings-cancel">Закрити</button>
       <button class="btn btn-primary" id="settings-save">Зберегти</button>
@@ -363,67 +335,82 @@ button{cursor:pointer}
 </div>
 
 <script>
-const LS={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},};
+const LS={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
 
-let PASS='team2024',DAYS=5,INTERVAL=2,curBoard='m',statusFilter=null,detailId=null,dragId=null,autoTimer=null;
+let PASS='team2024',DAYS=5,INTERVAL=2,curBoard='m',statusFilter=null,dragId=null,autoTimer=null;
 let data={m:[],e:[]};
 let rcCfg={m:{host:'',room:'',uid:'',token:''},e:{host:'',room:'',uid:'',token:''}};
 let rcProxy='';
 let names={m:'Канал М',e:'Канал Е'};
 let KEYWORDS=[
-  {word:'в роботі',status:'active'},{word:'в работе',status:'active'},{word:'прийнято',status:'active'},{word:'принято',status:'active'},
-  {word:'пауза',status:'pause'},{word:'на паузі',status:'pause'},{word:'очікування',status:'pause'},{word:'заморожено',status:'pause'},
-  {word:'готово',status:'done'},{word:'закрито',status:'done'},{word:'виконано',status:'done'},{word:'відвантажено',status:'done'}
+  {word:'в роботі',status:'active'},{word:'в работе',status:'active'},{word:'прийнято',status:'active'},{word:'виконується',status:'active'},
+  {word:'пауза',status:'pause'},{word:'на паузі',status:'pause'},{word:'очікування',status:'pause'},{word:'відкладено',status:'pause'},
+  {word:'готово',status:'done'},{word:'закрито',status:'done'},{word:'виконано',status:'done'},{word:'відвантажено',status:'done'},{word:'завершено',status:'done'}
 ];
-let seenIds={m:new Set(),e:new Set()};
+let expandedIds=new Set();
 
-// ---- ПАРСИНГ ЗАЯВКИ ----
-function parseTicket(msgText){
-  const lines=msgText.split('\n').map(l=>l.trim()).filter(Boolean);
-  const result={num:'',date:'',pidstava:'',virib:'',kilkist:'',zamovnyk:'',termin:'',stan:'',raw:msgText};
+// ---- ПАРСЕР ----
+function parseTicket(raw){
+  const text=raw.replace(/\*+([^*\n]+)\*+/g,'$1').replace(/_+([^_\n]+)_+/g,'$1').replace(/\r/g,'');
+  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const r={num:'',date:'',pidstava:'',virib:'',kilkist:'',zamovnyk:'',termin:'',stan:'',vidvant:'',extra:'',raw};
 
-  // Перший рядок — заголовок з номером і датою
-  // "Замовлення в СМ на виготовлення №0106/4 - М"
-  const numMatch=msgText.match(/№[\d\/\-\s]+[МЕMEме]?/i);
-  if(numMatch)result.num=numMatch[0].trim();
+  const numMatch=raw.replace(/[*_]/g,'').match(/№[\d\/]+\s*[-–]\s*[МЕMEме]/i)||raw.replace(/[*_]/g,'').match(/№[\d\/]+/);
+  if(numMatch)r.num=numMatch[0].trim();
 
-  // "Від 01.06.2026"
-  const dateMatch=msgText.match(/[Вв]ід\s+([\d\.]+)/);
-  if(dateMatch)result.date=dateMatch[1];
+  const dateMatch=text.match(/[Вв]ід\s+([\d]{2}\.[\d]{2}\.[\d]{4})/);
+  if(dateMatch)r.date=dateMatch[1];
 
-  lines.forEach(line=>{
-    const low=line.toLowerCase();
-    if(low.startsWith('підстава:'))result.pidstava=line.replace(/підстава:\s*/i,'').trim();
-    else if(low.startsWith('виріб:'))result.virib=line.replace(/виріб:\s*/i,'').trim();
-    else if(low.startsWith('кількість:'))result.kilkist=line.replace(/кількість:\s*/i,'').trim();
-    else if(low.startsWith('замовник:'))result.zamovnyk=line.replace(/замовник:\s*/i,'').trim();
-    else if(low.startsWith('термін:'))result.termin=line.replace(/термін:\s*/i,'').trim();
-    else if(low.startsWith('стан:'))result.stan=line.replace(/стан:\s*/i,'').trim();
-    else if(low.startsWith('відвантаження:'))result.vidvant=line.replace(/відвантаження:\s*/i,'').trim()||'—';
-  });
+  let viribLines=[];let inVirib=false;
 
-  return result;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    const val=line.replace(/^[^:：]+[:：]\s*/,'').trim();
+
+    if(/^підстава\s*[:：]/i.test(line)){r.pidstava=val;inVirib=false;}
+    else if(/^(виріб|деталь)\s*[:：]/i.test(line)){viribLines=[val];inVirib=true;}
+    else if(/^кількість\s*[:：]/i.test(line)){
+      if(inVirib)r.virib=viribLines.filter(Boolean).join('\n');
+      r.kilkist=val;inVirib=false;
+    }
+    else if(/^замовник\s*[:：]/i.test(line)){
+      if(inVirib)r.virib=viribLines.filter(Boolean).join('\n');
+      r.zamovnyk=val.replace(/@/g,'').trim();inVirib=false;
+    }
+    else if(/^(термін|терміни)\s*[:：]/i.test(line)){
+      if(inVirib)r.virib=viribLines.filter(Boolean).join('\n');
+      const tl=[val];let j=i+1;
+      while(j<lines.length&&/^[-–•]/.test(lines[j])){tl.push(lines[j].replace(/^[-–•]\s*/,''));j++;}
+      r.termin=tl.filter(Boolean).join(' | ');i=j-1;inVirib=false;
+    }
+    else if(/^стан\s*[:：]/i.test(line)){
+      if(inVirib)r.virib=viribLines.filter(Boolean).join('\n');
+      r.stan=val;inVirib=false;
+    }
+    else if(/^відвантаження\s*[:：]/i.test(line)){r.vidvant=val||'';inVirib=false;}
+    else if(inVirib&&/^[-–•]/.test(line)){viribLines.push(line.replace(/^[-–•]\s*/,''));}
+    else if(i>1&&r.kilkist&&r.zamovnyk&&line.length>5&&!/^(замовлення|від)/i.test(line)){r.extra+=line+' ';}
+  }
+  if(inVirib&&viribLines.length)r.virib=viribLines.filter(Boolean).join('\n');
+  r.extra=r.extra.trim();
+  return r;
 }
 
-function detectStatusFromStan(stan){
-  if(!stan)return 'new';
+function detectStatus(stan){
+  if(!stan||!stan.trim())return 'new';
   const low=stan.toLowerCase();
   for(const kw of KEYWORDS){if(low.includes(kw.word.toLowerCase()))return kw.status;}
-  return 'active'; // якщо є стан але не розпізнано — в роботі
+  return 'new';
 }
 
-function stanBadgeClass(status){
-  return status==='new'?'stan-new':status==='active'?'stan-active':status==='pause'?'stan-pause':'stan-done';
-}
+function isZamovlennya(text){return /замовлення/i.test(text)||/№\s*\d/.test(text);}
 function statusLabel(s){return s==='new'?'Без статусу':s==='active'?'В роботі':s==='pause'?'На паузі':'Закрито';}
+function sbClass(s){return s==='new'?'sb-new':s==='active'?'sb-active':s==='pause'?'sb-pause':'sb-done';}
 function fmt(ts){return new Date(ts).toLocaleDateString('uk',{day:'2-digit',month:'2-digit',year:'2-digit'});}
 function fmtTime(ts){return new Date(ts).toLocaleTimeString('uk',{hour:'2-digit',minute:'2-digit'});}
 function isOverdue(t){
   if(t.status==='done'||t.status==='new')return false;
-  if(t.termin){
-    const parts=t.termin.split('.');
-    if(parts.length===3){const d=new Date(parts[2],parts[1]-1,parts[0]);return d<new Date();}
-  }
+  if(t.termin){const dm=t.termin.match(/(\d{2})\.(\d{2})\.?(\d{4}|\d{2})?/);if(dm){const yr=dm[3]?(dm[3].length===2?'20'+dm[3]:dm[3]):'2026';const d=new Date(`${yr}-${dm[2]}-${dm[1]}`);if(!isNaN(d)&&d<new Date())return true;}}
   return(Date.now()-t.created)>DAYS*86400000;
 }
 function mkId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
@@ -441,8 +428,6 @@ function load(){
   try{const r=LS.get('tix_e');if(r)data.e=JSON.parse(r);}catch(e){data.e=[];}
   try{const r=LS.get('tix_rc_m');if(r)rcCfg.m=JSON.parse(r);}catch(e){}
   try{const r=LS.get('tix_rc_e');if(r)rcCfg.e=JSON.parse(r);}catch(e){}
-  data.m.forEach(t=>seenIds.m.add(t.rcMsgId||t.id));
-  data.e.forEach(t=>seenIds.e.add(t.rcMsgId||t.id));
   document.getElementById('s-days').value=DAYS;
   document.getElementById('s-interval').value=INTERVAL;
   document.getElementById('s-name-m').value=names.m;
@@ -459,7 +444,7 @@ function load(){
 function saveBoard(b){LS.set('tix_'+b,JSON.stringify(data[b]));}
 
 function switchBoard(b){
-  curBoard=b;statusFilter=null;
+  curBoard=b;statusFilter=null;expandedIds.clear();
   document.getElementById('tab-m').className='board-tab'+(b==='m'?' active-m':'');
   document.getElementById('tab-e').className='board-tab'+(b==='e'?' active-e':'');
   document.getElementById('bh-dot').style.background=b==='m'?'#4f8ef7':'#4ade80';
@@ -481,54 +466,136 @@ function updateTabLabels(){
   document.getElementById('tab-name-e').textContent=names.e;
 }
 
-async function fetchRC(b){
+// Завантажити ВСІ повідомлення з RC — paginated
+async function fetchAllRC(b){
   const c=rcCfg[b];
   if(!c.host||!c.uid||!c.token||!c.room||!rcProxy)return null;
-  const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(c.room)}&count=100`;
-  try{
-    const res=await fetch(`${rcProxy}?host=${encodeURIComponent(c.host)}&path=${encodeURIComponent(path)}`,{
-      headers:{'X-Auth-Token':c.token,'X-User-Id':c.uid}
-    });
-    if(!res.ok)return null;
-    const json=await res.json();
-    return json.messages||null;
-  }catch(e){return null;}
+  let all=[];let offset=0;const count=100;
+  while(true){
+    const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(c.room)}&count=${count}&offset=${offset}`;
+    try{
+      const res=await fetch(`${rcProxy}?host=${encodeURIComponent(c.host)}&path=${encodeURIComponent(path)}`,{headers:{'X-Auth-Token':c.token,'X-User-Id':c.uid}});
+      if(!res.ok)break;
+      const json=await res.json();
+      const msgs=json.messages||[];
+      all=all.concat(msgs);
+      const total=json.total||0;
+      offset+=count;
+      // Оновлюємо прогрес
+      const pct=total>0?Math.min(100,Math.round(all.length/total*100)):50;
+      setProgress(pct,`Завантажено ${all.length} з ${total} повідомлень...`);
+      if(msgs.length<count||all.length>=total)break;
+    }catch(e){break;}
+  }
+  return all;
+}
+
+function setProgress(pct,text){
+  document.getElementById('progress-fill').style.width=pct+'%';
+  document.getElementById('progress-text').textContent=text;
+}
+
+// Підтвердження перезавантаження
+function confirmReload(){
+  const c=rcCfg[curBoard];
+  if(!c.host||!c.uid||!c.token||!c.room||!rcProxy){
+    alert('Спочатку налаштуйте підключення до Rocket.Chat в Налаштуваннях → Rocket.Chat');return;
+  }
+  document.getElementById('confirm-modal').classList.add('open');
+}
+document.getElementById('confirm-cancel').onclick=function(){document.getElementById('confirm-modal').classList.remove('open');};
+document.getElementById('confirm-ok').onclick=async function(){
+  document.getElementById('confirm-modal').classList.remove('open');
+  await reloadAllFromRC();
+};
+
+async function reloadAllFromRC(){
+  // Показуємо прогрес
+  const pb=document.getElementById('progress-bar');pb.classList.add('show');
+  setProgress(0,'Підключення до Rocket.Chat...');
+
+  // Видаляємо старі дані цієї дошки
+  data[curBoard]=[];
+  LS.del('tix_'+curBoard);
+  expandedIds.clear();
+  render();
+
+  const msgs=await fetchAllRC(curBoard);
+
+  if(!msgs){
+    setProgress(0,'Помилка з\'єднання');
+    setTimeout(()=>pb.classList.remove('show'),3000);
+    return;
+  }
+
+  setProgress(90,'Парсинг заявок...');
+
+  const seenLocal=new Set();
+  let added=0;
+
+  // Сортуємо від старих до нових
+  msgs.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+
+  msgs.forEach(msg=>{
+    if(!seenLocal.has(msg._id)&&msg.msg&&msg.msg.trim()){
+      const text=msg.msg.trim();
+      if(isZamovlennya(text)){
+        seenLocal.add(msg._id);
+        const p=parseTicket(text);
+        const det=detectStatus(p.stan);
+        data[curBoard].push({
+          id:mkId(),rcMsgId:msg._id,
+          num:p.num,date:p.date,pidstava:p.pidstava,
+          virib:p.virib,kilkist:p.kilkist,zamovnyk:p.zamovnyk,
+          termin:p.termin,stan:p.stan,vidvant:p.vidvant,extra:p.extra,
+          raw:text,status:det,
+          created:msg.ts?new Date(msg.ts).getTime():Date.now(),
+          comments:[],fromRC:true
+        });
+        added++;
+      }
+    }
+  });
+
+  saveBoard(curBoard);
+  setProgress(100,`Готово! Завантажено ${added} заявок.`);
+  document.getElementById('last-sync').textContent=`Перезавантажено о ${fmtTime(Date.now())} (${added} заявок)`;
+  setTimeout(()=>pb.classList.remove('show'),4000);
+  updateTabLabels();render();
 }
 
 async function syncBoard(){
   const btn=document.getElementById('sync-btn');
-  btn.innerHTML='<span class="spin"></span>';
-  btn.disabled=true;
-  const msgs=await fetchRC(curBoard);
-  if(msgs===null){
-    document.getElementById('last-sync').textContent='Помилка з\'єднання';
-  } else {
-    let added=0;
-    msgs.forEach(msg=>{
-      if(!seenIds[curBoard].has(msg._id)&&msg.msg&&msg.msg.trim()){
-        // парсимо тільки якщо схоже на заявку
-        const text=msg.msg.trim();
-        if(text.includes('Замовлення')||text.includes('замовлення')||text.includes('№')){
-          seenIds[curBoard].add(msg._id);
-          const parsed=parseTicket(text);
-          const det=detectStatusFromStan(parsed.stan);
-          data[curBoard].push({
-            id:mkId(),rcMsgId:msg._id,
-            num:parsed.num,date:parsed.date,pidstava:parsed.pidstava,
-            virib:parsed.virib,kilkist:parsed.kilkist,zamovnyk:parsed.zamovnyk,
-            termin:parsed.termin,stan:parsed.stan,vidvant:parsed.vidvant||'',
-            raw:text,status:det,created:msg.ts?new Date(msg.ts).getTime():Date.now(),
-            comments:[],fromRC:true
-          });
-          added++;
-        }
-      }
-    });
-    if(added>0)saveBoard(curBoard);
-    document.getElementById('last-sync').textContent=`Оновлено о ${fmtTime(Date.now())}${added>0?` (+${added})`:''}`;
+  btn.innerHTML='<span class="spin"></span>';btn.disabled=true;
+  const c=rcCfg[curBoard];
+  if(!c.host||!c.uid||!c.token||!c.room||!rcProxy){
+    btn.innerHTML='<i class="ti ti-refresh"></i> Оновити';btn.disabled=false;return;
   }
-  btn.innerHTML='<i class="ti ti-refresh"></i> Оновити';
-  btn.disabled=false;
+  const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(c.room)}&count=50`;
+  const seenLocal=new Set(data[curBoard].map(t=>t.rcMsgId).filter(Boolean));
+  try{
+    const res=await fetch(`${rcProxy}?host=${encodeURIComponent(c.host)}&path=${encodeURIComponent(path)}`,{headers:{'X-Auth-Token':c.token,'X-User-Id':c.uid}});
+    if(res.ok){
+      const json=await res.json();
+      const msgs=json.messages||[];
+      let added=0;
+      msgs.forEach(msg=>{
+        if(!seenLocal.has(msg._id)&&msg.msg&&msg.msg.trim()){
+          const text=msg.msg.trim();
+          if(isZamovlennya(text)){
+            seenLocal.add(msg._id);
+            const p=parseTicket(text);
+            const det=detectStatus(p.stan);
+            data[curBoard].push({id:mkId(),rcMsgId:msg._id,num:p.num,date:p.date,pidstava:p.pidstava,virib:p.virib,kilkist:p.kilkist,zamovnyk:p.zamovnyk,termin:p.termin,stan:p.stan,vidvant:p.vidvant,extra:p.extra,raw:text,status:det,created:msg.ts?new Date(msg.ts).getTime():Date.now(),comments:[],fromRC:true});
+            added++;
+          }
+        }
+      });
+      if(added>0)saveBoard(curBoard);
+      document.getElementById('last-sync').textContent=`Оновлено о ${fmtTime(Date.now())}${added>0?` (+${added})`:''}`;
+    }
+  }catch(e){document.getElementById('last-sync').textContent='Помилка з\'єднання';}
+  btn.innerHTML='<i class="ti ti-refresh"></i> Оновити';btn.disabled=false;
   updateTabLabels();render();
 }
 
@@ -545,16 +612,62 @@ async function testConnection(b){
   try{
     const r=await fetch(`${proxy}?host=${encodeURIComponent(host)}&path=${encodeURIComponent(path)}`,{headers:{'X-Auth-Token':token,'X-User-Id':uid}});
     if(r.ok){res.textContent='✓ Підключено!';res.style.color='#4ade80';}
-    else{const j=await r.json();res.textContent='Помилка: '+(j.error||r.status);res.style.color='#f87171';}
+    else{const j=await r.json().catch(()=>({}));res.textContent='Помилка: '+(j.error||r.status);res.style.color='#f87171';}
   }catch(e){res.textContent='Не вдалось підключитись';res.style.color='#f87171';}
 }
 
 function startAutoSync(){
   if(autoTimer)clearInterval(autoTimer);
-  if(INTERVAL>0){
-    autoTimer=setInterval(()=>syncBoard(),INTERVAL*60*1000);
-    document.getElementById('auto-sync-info').textContent=`Автооновлення кожні ${INTERVAL} хв.`;
-  } else document.getElementById('auto-sync-info').textContent='';
+  if(INTERVAL>0){autoTimer=setInterval(()=>syncBoard(),INTERVAL*60*1000);document.getElementById('auto-sync-info').textContent=`Автооновлення кожні ${INTERVAL} хв.`;}
+  else document.getElementById('auto-sync-info').textContent='';
+}
+
+// ---- EXCEL EXPORT ----
+function exportXLSX(){
+  if(!window.XLSX){alert('Бібліотека XLSX ще завантажується, спробуйте ще раз.');return;}
+  const wb=XLSX.utils.book_new();
+
+  ['m','e'].forEach(b=>{
+    const rows=data[b].map(t=>({
+      'Номер':t.num||'',
+      'Дата':t.date||'',
+      'Підстава':t.pidstava||'',
+      'Виріб':(t.virib||'').replace(/\n/g,'; '),
+      'Кількість':t.kilkist||'',
+      'Замовник':t.zamovnyk||'',
+      'Термін':t.termin||'',
+      'Стан (оригінал)':t.stan||'',
+      'Статус':statusLabel(t.status),
+      'Джерело':t.fromRC?'Rocket.Chat':'Вручну',
+      'Дата додавання':fmt(t.created),
+      'Коментарів':(t.comments||[]).length
+    }));
+
+    // Якщо немає даних — порожній лист
+    const ws=rows.length>0?XLSX.utils.json_to_sheet(rows):XLSX.utils.aoa_to_sheet([['Немає даних']]);
+
+    // Ширина колонок
+    if(rows.length>0){
+      ws['!cols']=[{wch:20},{wch:12},{wch:25},{wch:35},{wch:12},{wch:15},{wch:20},{wch:15},{wch:12},{wch:12},{wch:15},{wch:10}];
+    }
+
+    XLSX.utils.book_append_sheet(wb,ws,names[b]);
+  });
+
+  // Зведений лист
+  const summary=[];
+  ['m','e'].forEach(b=>{
+    const all=data[b];
+    const cnt={new:0,active:0,pause:0,done:0};
+    all.forEach(t=>{if(cnt[t.status]!==undefined)cnt[t.status]++;});
+    summary.push({'Дошка':names[b],'Всього':all.length,'Без статусу':cnt.new,'В роботі':cnt.active,'На паузі':cnt.pause,'Закрито':cnt.done});
+  });
+  const wsSummary=XLSX.utils.json_to_sheet(summary);
+  wsSummary['!cols']=[{wch:15},{wch:10},{wch:14},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wsSummary,'Зведення');
+
+  const date=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,`zamovlennya_${date}.xlsx`);
 }
 
 function getFiltered(){
@@ -562,7 +675,7 @@ function getFiltered(){
   const asgn=document.getElementById('f-assignee-filter').value;
   return tickets().filter(t=>{
     if(statusFilter&&t.status!==statusFilter)return false;
-    if(search&&!(t.num||'').toLowerCase().includes(search)&&!(t.virib||'').toLowerCase().includes(search)&&!(t.zamovnyk||'').toLowerCase().includes(search)&&!(t.raw||'').toLowerCase().includes(search))return false;
+    if(search){const hay=(t.num+' '+t.virib+' '+t.zamovnyk+' '+t.pidstava).toLowerCase();if(!hay.includes(search))return false;}
     if(asgn&&t.zamovnyk!==asgn)return false;
     return true;
   });
@@ -571,7 +684,7 @@ function getFiltered(){
 function updateZamovnykFilter(){
   const sel=document.getElementById('f-assignee-filter');
   const cur=sel.value;
-  const zs=[...new Set(tickets().map(t=>t.zamovnyk).filter(Boolean))];
+  const zs=[...new Set(tickets().map(t=>t.zamovnyk).filter(Boolean))].sort();
   sel.innerHTML='<option value="">Всі замовники</option>'+zs.map(z=>`<option value="${z}">${z}</option>`).join('');
   if(zs.includes(cur))sel.value=cur;
 }
@@ -597,97 +710,100 @@ function render(){
   ['new','active','pause','done'].forEach(s=>document.getElementById('stat-'+s).classList.toggle('active-filter',statusFilter===s));
   const overdue=tickets().filter(t=>isOverdue(t));
   const bar=document.getElementById('overdue-bar');
-  if(overdue.length){bar.style.display='flex';document.getElementById('overdue-text').textContent=`${overdue.length} заявка(ок) прострочена: `+overdue.map(t=>t.num||t.id.slice(-4)).join(', ');}
+  if(overdue.length){bar.style.display='flex';document.getElementById('overdue-text').textContent=`Прострочено ${overdue.length}: `+overdue.map(t=>t.num||'#'+t.id.slice(-4)).join(', ');}
   else bar.style.display='none';
   updateTabLabels();
 }
 
 function mkTicket(t){
+  const od=isOverdue(t);
+  const isOpen=expandedIds.has(t.id);
   const div=document.createElement('div');
-  let cls='ticket';
-  if(t.status==='new')cls+=' status-new';
-  if(isOverdue(t))cls+=' overdue';
-  if(t.fromRC)cls+=' from-rc';
-  if(curBoard==='e')cls+=' board-e';
-  div.className=cls;div.draggable=true;div.dataset.id=t.id;
-  const cCount=(t.comments||[]).length;
-  const overdueTag=isOverdue(t)?`<span style="color:#f87171;font-size:11px"><i class="ti ti-alert-circle"></i> Прострочено</span>`:'';
+  div.className=`ticket status-${t.status}${od?' overdue':''}`;
+  div.dataset.id=t.id;
+
+  const viribHtml=t.virib?t.virib.split('\n').map(l=>`<div style="padding-left:4px">• ${l}</div>`).join(''):'';
+  const comments=t.comments||[];
+  const commentsHtml=comments.length
+    ?comments.map(c=>`<div class="exp-comment"><div class="exp-comment-header"><span class="exp-comment-author">${c.author||'Анонім'}</span><span class="exp-comment-date">${fmt(c.ts)}</span></div><div class="exp-comment-text">${c.text}</div></div>`).join('')
+    :'<div style="font-size:12px;color:#475569">Коментарів немає</div>';
+
   div.innerHTML=`
-    <div class="ticket-head">
-      <div>
-        <div class="ticket-num" onclick="openDetail('${t.id}')">${t.num||'Без номера'}</div>
-        ${t.date?`<div class="ticket-date">від ${t.date}</div>`:''}
-      </div>
-      <div style="display:flex;align-items:center;gap:4px">
-        <span class="stan-badge ${stanBadgeClass(t.status)}">${statusLabel(t.status)}</span>
-      </div>
+    <div class="ticket-compact" draggable="true">
+      <i class="ti ti-grip-vertical ticket-drag-handle"></i>
+      <span class="ticket-num">Заявка ${t.num||'(без номера)'}</span>
+      <span class="sbadge ${sbClass(t.status)}">${statusLabel(t.status)}</span>
+      <i class="ti ti-chevron-right ticket-arrow${isOpen?' open':''}"></i>
     </div>
-    <div class="ticket-body">
-      ${t.virib?`<div class="ticket-field"><span class="ticket-field-label">Виріб:</span><span class="ticket-field-val highlight">${t.virib}</span></div>`:''}
-      ${t.kilkist?`<div class="ticket-field"><span class="ticket-field-label">Кількість:</span><span class="ticket-field-val">${t.kilkist}</span></div>`:''}
-      ${t.zamovnyk?`<div class="ticket-field"><span class="ticket-field-label">Замовник:</span><span class="ticket-field-val">${t.zamovnyk}</span></div>`:''}
-      ${t.termin?`<div class="ticket-field"><span class="ticket-field-label">Термін:</span><span class="ticket-field-val" style="color:${isOverdue(t)?'#f87171':'#f59e0b'}">${t.termin}</span></div>`:''}
-      ${t.pidstava?`<div class="ticket-field"><span class="ticket-field-label">Підстава:</span><span class="ticket-field-val" style="color:#94a3b8">${t.pidstava}</span></div>`:''}
-    </div>
-    <div class="ticket-footer">
-      <div class="ticket-meta">
-        ${t.fromRC?`<span style="color:#4f8ef7"><i class="ti ti-brand-rocket"></i>RC</span>`:''}
-        ${cCount>0?`<span><i class="ti ti-message"></i>${cCount}</span>`:''}
-        ${overdueTag}
+    <div class="ticket-expanded${isOpen?' open':''}">
+      ${t.date?`<div class="exp-row"><span class="exp-label">Дата:</span><span class="exp-val muted">від ${t.date}</span></div>`:''}
+      ${t.pidstava?`<div class="exp-row"><span class="exp-label">Підстава:</span><span class="exp-val muted">${t.pidstava}</span></div>`:''}
+      ${t.virib?`<div class="exp-row"><span class="exp-label">Виріб:</span><div class="exp-val yellow" style="flex:1">${viribHtml||t.virib}</div></div>`:''}
+      ${t.kilkist?`<div class="exp-row"><span class="exp-label">Кількість:</span><span class="exp-val">${t.kilkist}</span></div>`:''}
+      ${t.zamovnyk?`<div class="exp-row"><span class="exp-label">Замовник:</span><span class="exp-val">${t.zamovnyk}</span></div>`:''}
+      ${t.termin?`<div class="exp-row"><span class="exp-label">Термін:</span><span class="exp-val ${od?'red':'yellow'}">${t.termin}${od?' ⚠️':''}</span></div>`:''}
+      ${t.stan!==undefined?`<div class="exp-row"><span class="exp-label">Стан:</span><span class="exp-val">${t.stan||'—'}</span></div>`:''}
+      ${t.vidvant!==undefined?`<div class="exp-row"><span class="exp-label">Відвантаж.:</span><span class="exp-val muted">${t.vidvant||'—'}</span></div>`:''}
+      ${t.extra?`<div class="exp-row"><span class="exp-label">Примітка:</span><span class="exp-val muted">${t.extra}</span></div>`:''}
+      <div class="exp-actions">
+        ${t.status==='new'?`<button class="accept-btn" data-id="${t.id}">✓ Взяти в роботу</button>`:''}
+        <select class="status-sel" data-id="${t.id}" style="font-size:12px;padding:4px 8px">
+          <option value="new"${t.status==='new'?' selected':''}>Без статусу</option>
+          <option value="active"${t.status==='active'?' selected':''}>В роботі</option>
+          <option value="pause"${t.status==='pause'?' selected':''}>На паузі</option>
+          <option value="done"${t.status==='done'?' selected':''}>Закрито</option>
+        </select>
+        <button class="icon-btn del-btn" data-id="${t.id}" style="color:#f87171;margin-left:auto"><i class="ti ti-trash"></i></button>
       </div>
-      <div class="ticket-actions">
-        ${t.status==='new'?`<button class="accept-btn" onclick="quickAccept('${t.id}')">Взяти в роботу</button>`:''}
-        <button class="icon-btn" onclick="openDetail('${t.id}')"><i class="ti ti-message-circle"></i></button>
-        <button class="icon-btn" style="color:#f87171" onclick="deleteTicket('${t.id}')"><i class="ti ti-trash"></i></button>
+      <div class="exp-comment-section">
+        <div class="exp-comments">${commentsHtml}</div>
+        <div class="exp-comment-input">
+          <input type="text" class="c-name-input" placeholder="Ваше ім'я" style="width:90px;flex:0 0 auto">
+          <input type="text" class="c-text-input" placeholder="Коментар..." data-id="${t.id}">
+          <button class="btn btn-primary c-send-btn" data-id="${t.id}" style="font-size:12px;padding:4px 10px">→</button>
+        </div>
       </div>
     </div>`;
-  div.addEventListener('dragstart',e=>{dragId=t.id;e.dataTransfer.effectAllowed='move';});
-  div.addEventListener('dragend',()=>{dragId=null;document.querySelectorAll('.col').forEach(c=>c.classList.remove('drag-active'));});
+
+  const compact=div.querySelector('.ticket-compact');
+  const expanded=div.querySelector('.ticket-expanded');
+  const arrow=div.querySelector('.ticket-arrow');
+
+  compact.addEventListener('dragstart',e=>{e.stopPropagation();dragId=t.id;e.dataTransfer.effectAllowed='move';});
+  compact.addEventListener('dragend',()=>{dragId=null;document.querySelectorAll('.col').forEach(c=>c.classList.remove('drag-active'));});
+  compact.addEventListener('click',e=>{
+    if(e.target.classList.contains('ticket-drag-handle'))return;
+    if(expandedIds.has(t.id)){expandedIds.delete(t.id);expanded.classList.remove('open');arrow.classList.remove('open');}
+    else{expandedIds.add(t.id);expanded.classList.add('open');arrow.classList.add('open');}
+  });
+
+  const acceptBtn=div.querySelector('.accept-btn');
+  if(acceptBtn)acceptBtn.addEventListener('click',e=>{e.stopPropagation();changeStatus(t.id,'active');});
+  div.querySelector('.status-sel').addEventListener('change',function(e){e.stopPropagation();changeStatus(t.id,this.value);});
+  div.querySelector('.del-btn').addEventListener('click',e=>{e.stopPropagation();deleteTicket(t.id);});
+  div.querySelector('.c-send-btn').addEventListener('click',e=>{
+    e.stopPropagation();
+    const nameInput=div.querySelector('.c-name-input');
+    const textInput=div.querySelector('.c-text-input');
+    const text=textInput.value.trim();if(!text)return;
+    const tk=tickets().find(x=>x.id===t.id);if(!tk)return;
+    if(!tk.comments)tk.comments=[];
+    tk.comments.push({author:nameInput.value.trim()||'Анонім',text,ts:Date.now()});
+    textInput.value='';saveBoard(curBoard);expandedIds.add(t.id);render();
+  });
+  div.querySelector('.c-text-input').addEventListener('keydown',function(e){if(e.key==='Enter'){e.stopPropagation();div.querySelector('.c-send-btn').click();}});
+  div.querySelector('.c-text-input').addEventListener('click',e=>e.stopPropagation());
+  div.querySelector('.c-name-input').addEventListener('click',e=>e.stopPropagation());
   return div;
 }
 
-function quickAccept(id){
+function changeStatus(id,newStatus){
   const t=tickets().find(x=>x.id===id);
-  if(t){t.status='active';saveBoard(curBoard);render();}
+  if(t){t.status=newStatus;saveBoard(curBoard);expandedIds.add(id);render();}
 }
-
-function openDetail(id){
-  detailId=id;
-  const t=tickets().find(x=>x.id===id);if(!t)return;
-  document.getElementById('detail-heading').textContent=t.num||'Заявка';
-  document.getElementById('detail-status-select').value=t.status;
-  const doc=document.getElementById('detail-doc');
-  doc.innerHTML=`
-    <div class="doc-title">${t.num||'Без номера'}${t.date?` &nbsp;·&nbsp; від ${t.date}`:''}</div>
-    ${t.pidstava?`<div class="doc-row"><span class="doc-label">Підстава:</span><span class="doc-val">${t.pidstava}</span></div>`:''}
-    ${t.virib?`<div class="doc-row"><span class="doc-label">Виріб:</span><span class="doc-val" style="color:#f59e0b">${t.virib}</span></div>`:''}
-    ${t.kilkist?`<div class="doc-row"><span class="doc-label">Кількість:</span><span class="doc-val">${t.kilkist}</span></div>`:''}
-    ${t.zamovnyk?`<div class="doc-row"><span class="doc-label">Замовник:</span><span class="doc-val">${t.zamovnyk}</span></div>`:''}
-    ${t.termin?`<div class="doc-row"><span class="doc-label">Термін:</span><span class="doc-val" style="color:${isOverdue(t)?'#f87171':'#f59e0b'}">${t.termin}${isOverdue(t)?' ⚠️ Прострочено':''}</span></div>`:''}
-    ${t.stan?`<div class="doc-row"><span class="doc-label">Стан:</span><span class="doc-val">${t.stan}</span></div>`:''}
-    ${t.vidvant!==undefined?`<div class="doc-row"><span class="doc-label">Відвантаження:</span><span class="doc-val">${t.vidvant||'—'}</span></div>`:''}
-  `;
-  const acceptBtn=document.getElementById('detail-accept');
-  acceptBtn.style.display=t.status==='new'?'':'none';
-  acceptBtn.onclick=()=>{quickAccept(id);document.getElementById('detail-modal').classList.remove('open');};
-  renderComments(t);
-  document.getElementById('detail-modal').classList.add('open');
-}
-
-function renderComments(t){
-  const list=document.getElementById('comments-list');
-  const c=t.comments||[];
-  if(!c.length){list.innerHTML=`<p style="font-size:13px;color:#475569">Коментарів поки немає</p>`;return;}
-  list.innerHTML=c.map(c=>`<div class="comment"><div class="comment-header"><span class="comment-author">${c.author||'Анонім'}</span><span class="comment-date">${fmt(c.ts)}</span></div><div class="comment-text">${c.text}</div></div>`).join('');
-  list.scrollTop=list.scrollHeight;
-}
-
 function deleteTicket(id){
-  data[curBoard]=data[curBoard].filter(t=>t.id!==id);
-  saveBoard(curBoard);render();
-  document.getElementById('detail-modal').classList.remove('open');
+  expandedIds.delete(id);data[curBoard]=data[curBoard].filter(t=>t.id!==id);saveBoard(curBoard);render();
 }
-
 function onDragOver(e,col){e.preventDefault();document.getElementById('col-'+col).classList.add('drag-active');}
 function onDragLeave(e,col){if(!document.getElementById('col-'+col).contains(e.relatedTarget))document.getElementById('col-'+col).classList.remove('drag-active');}
 function onDrop(e,col){
@@ -698,7 +814,6 @@ function onDrop(e,col){
 }
 function filterByStatus(s){statusFilter=statusFilter===s?null:s;render();}
 
-// LOGIN
 document.getElementById('login-btn').onclick=function(){
   if(document.getElementById('pwd-input').value===PASS){
     document.getElementById('login-screen').style.display='none';
@@ -710,72 +825,27 @@ document.getElementById('pwd-input').addEventListener('keydown',e=>{if(e.key==='
 document.getElementById('logout-btn').onclick=function(){
   document.getElementById('app').style.display='none';
   document.getElementById('login-screen').style.display='flex';
-  document.getElementById('pwd-input').value='';
-  document.getElementById('pwd-err').style.display='none';
+  document.getElementById('pwd-input').value='';document.getElementById('pwd-err').style.display='none';
   if(autoTimer)clearInterval(autoTimer);
 };
 
-// ADD MANUAL
 document.getElementById('add-btn').onclick=function(){
-  ['f-num','f-pidstava','f-virib','f-kilkist','f-zamovnyk','f-date','f-termin'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('f-stan').value='new';
+  ['f-num','f-date','f-pidstava','f-kilkist','f-zamovnyk','f-termin'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-virib').value='';document.getElementById('f-stan').value='new';
   document.getElementById('modal-heading').textContent='Нова заявка — '+names[curBoard];
   document.getElementById('add-modal').classList.add('open');
 };
 document.getElementById('cancel-btn').onclick=function(){document.getElementById('add-modal').classList.remove('open');};
 document.getElementById('save-btn').onclick=function(){
-  const num=document.getElementById('f-num').value.trim();
-  const virib=document.getElementById('f-virib').value.trim();
+  const num=document.getElementById('f-num').value.trim();const virib=document.getElementById('f-virib').value.trim();
   if(!num&&!virib)return;
-  const stan=document.getElementById('f-stan').value;
-  data[curBoard].push({
-    id:mkId(),num,
-    date:document.getElementById('f-date').value,
-    pidstava:document.getElementById('f-pidstava').value.trim(),
-    virib,kilkist:document.getElementById('f-kilkist').value.trim(),
-    zamovnyk:document.getElementById('f-zamovnyk').value.trim(),
-    termin:document.getElementById('f-termin').value,
-    stan:'',vidvant:'',raw:'',
-    status:stan,created:Date.now(),comments:[],fromRC:false
-  });
+  data[curBoard].push({id:mkId(),num,date:document.getElementById('f-date').value.trim(),pidstava:document.getElementById('f-pidstava').value.trim(),virib,kilkist:document.getElementById('f-kilkist').value.trim(),zamovnyk:document.getElementById('f-zamovnyk').value.trim(),termin:document.getElementById('f-termin').value.trim(),stan:'',vidvant:'',extra:'',raw:'',status:document.getElementById('f-stan').value,created:Date.now(),comments:[],fromRC:false});
   saveBoard(curBoard);render();document.getElementById('add-modal').classList.remove('open');
 };
 
-// DETAIL
-document.getElementById('detail-close').onclick=function(){document.getElementById('detail-modal').classList.remove('open');};
-document.getElementById('detail-delete').onclick=function(){if(detailId)deleteTicket(detailId);};
-document.getElementById('detail-status-save').onclick=function(){
-  const t=tickets().find(x=>x.id===detailId);
-  if(t){t.status=document.getElementById('detail-status-select').value;saveBoard(curBoard);render();document.getElementById('detail-modal').classList.remove('open');}
-};
-document.getElementById('c-send').onclick=function(){
-  const text=document.getElementById('c-text').value.trim();
-  if(!text||!detailId)return;
-  const t=tickets().find(x=>x.id===detailId);if(!t)return;
-  if(!t.comments)t.comments=[];
-  t.comments.push({author:document.getElementById('c-author').value.trim()||'Анонім',text,ts:Date.now()});
-  document.getElementById('c-text').value='';
-  saveBoard(curBoard);renderComments(t);render();
-};
-document.getElementById('c-text').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('c-send').click();});
-
-// FILTERS
 ['f-search','f-assignee-filter'].forEach(id=>document.getElementById(id).addEventListener('input',render));
-document.getElementById('f-reset').onclick=function(){
-  document.getElementById('f-search').value='';
-  document.getElementById('f-assignee-filter').value='';
-  statusFilter=null;render();
-};
+document.getElementById('f-reset').onclick=function(){document.getElementById('f-search').value='';document.getElementById('f-assignee-filter').value='';statusFilter=null;render();};
 
-// EXPORT
-document.getElementById('export-btn').onclick=function(){
-  const hdr='Дошка,Номер,Дата,Підстава,Виріб,Кількість,Замовник,Термін,Стан,Статус';
-  const rows=tickets().map(t=>[names[curBoard],t.num||'',t.date||'',`"${(t.pidstava||'').replace(/"/g,'""')}"`,`"${(t.virib||'').replace(/"/g,'""')}"`,t.kilkist||'',t.zamovnyk||'',t.termin||'',t.stan||'',statusLabel(t.status)].join(','));
-  const blob=new Blob(['\uFEFF'+hdr+'\n'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`zamovlennya_${curBoard}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
-};
-
-// SETTINGS
 document.getElementById('settings-btn').onclick=function(){document.getElementById('settings-modal').classList.add('open');switchSettingsTab('general');renderKW();};
 document.getElementById('settings-cancel').onclick=function(){document.getElementById('settings-modal').classList.remove('open');};
 document.getElementById('settings-save').onclick=function(){
@@ -809,23 +879,17 @@ document.getElementById('settings-save').onclick=function(){
 };
 
 function switchSettingsTab(tab){
-  ['general','rc','keywords'].forEach(t=>{
-    document.getElementById('spane-'+t).style.display=t===tab?'':'none';
-    document.getElementById('stab-'+t).className='tab'+(t===tab?' active':'');
-  });
+  ['general','rc','keywords'].forEach(t=>{document.getElementById('spane-'+t).style.display=t===tab?'':'none';document.getElementById('stab-'+t).className='tab'+(t===tab?' active':'');});
   document.getElementById('settings-save').style.display=tab==='keywords'?'none':'';
 }
-
 function renderKW(){
-  document.getElementById('kw-body').innerHTML=KEYWORDS.map((kw,i)=>
-    `<tr><td><span class="kw-tag">${kw.word}</span></td><td style="color:#64748b">${statusLabel(kw.status)}</td><td><button class="icon-btn" style="color:#f87171" onclick="delKW(${i})"><i class="ti ti-x"></i></button></td></tr>`).join('');
+  document.getElementById('kw-body').innerHTML=KEYWORDS.map((kw,i)=>`<tr><td><span class="kw-tag">${kw.word}</span></td><td style="color:#64748b">${statusLabel(kw.status)}</td><td><button class="icon-btn" style="color:#f87171" onclick="delKW(${i})"><i class="ti ti-x"></i></button></td></tr>`).join('');
 }
 function delKW(i){KEYWORDS.splice(i,1);LS.set('tix_kw',JSON.stringify(KEYWORDS));renderKW();}
 document.getElementById('kw-add').onclick=function(){
   const word=document.getElementById('kw-word').value.trim();if(!word)return;
   KEYWORDS.unshift({word,status:document.getElementById('kw-status').value});
-  document.getElementById('kw-word').value='';
-  LS.set('tix_kw',JSON.stringify(KEYWORDS));renderKW();
+  document.getElementById('kw-word').value='';LS.set('tix_kw',JSON.stringify(KEYWORDS));renderKW();
   const ok=document.getElementById('kw-ok');ok.style.display='block';setTimeout(()=>ok.style.display='none',1500);
 };
 
