@@ -193,10 +193,10 @@ button{cursor:pointer;transition:all .15s}
 .ticket.overdue{border-color:var(--red)}
 .ticket.overdue::before{background:var(--red)}
 .ticket:hover{border-color:var(--border2);box-shadow:var(--shadow2);transform:translateY(-1px)}
-.ticket-compact{display:flex;align-items:center;gap:8px;padding:10px 12px 10px 14px;cursor:pointer;user-select:none}
+.ticket-compact{display:flex;align-items:center;gap:6px;padding:8px 10px 8px 12px;cursor:pointer;user-select:none}
 .ticket-drag-handle{color:var(--border2);font-size:15px;cursor:grab;flex-shrink:0;transition:color .15s}
 .ticket-drag-handle:hover{color:var(--text3)}
-.ticket-num{font-size:13px;font-weight:600;color:var(--text);flex:1;line-height:1.3}
+.ticket-num{font-size:12px;font-weight:600;color:var(--text);flex:1;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ticket-compact:hover .ticket-num{color:var(--accent)}
 .ticket-arrow{font-size:15px;color:var(--text3);transition:transform .2s;flex-shrink:0}
 .ticket-arrow.open{transform:rotate(90deg)}
@@ -616,7 +616,8 @@ function parseTicket(raw){
 
 function isValidTicket(text){
   const clean=text.replace(/[*_]/g,'');
-  return /№\d{2,}\/\d+\s*[-–]\s*[МЕMEме]/i.test(clean);
+  // Правильний формат: №0106/1 - М або №0106/2-Е (мінімум 4 цифри до слеша, цифри після, тире, М або Е)
+  return /№\d{4,}\/\d+\s*[-–]\s*[МЕ]/i.test(clean);
 }
 
 function statusLabel(s){return s==='new'?'Без статусу':s==='active'?'В роботі':s==='pause'?'На паузі':'Закрито';}
