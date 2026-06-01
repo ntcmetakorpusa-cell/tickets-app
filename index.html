@@ -332,6 +332,9 @@ button{cursor:pointer;transition:all .15s}
   <!-- BOARD AREA -->
   <div class="board-area">
 
+    <div id="fb-sync-badge" style="display:none;position:fixed;bottom:20px;right:20px;background:var(--accent-bg);border:1px solid var(--accent);border-radius:20px;padding:6px 14px;font-size:12px;color:var(--accent);align-items:center;gap:8px;z-index:200;box-shadow:var(--shadow)">
+      <span class="spin"></span> Синхронізація з Firebase...
+    </div>
     <div class="board-toprow">
       <div class="board-title">
         <span class="board-title-dot" id="bh-dot" style="background:var(--accent)"></span>
@@ -517,7 +520,35 @@ button{cursor:pointer;transition:all .15s}
 </div>
 
 <script>
+// ---- Firebase Realtime Database (спільна база для всіх) ----
+const FB_URL='https://work-a15f8-default-rtdb.firebaseio.com';
 const LS={get:k=>{try{return localStorage.getItem(k);}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,v);}catch(e){}},del:k=>{try{localStorage.removeItem(k);}catch(e){}}};
+
+// Читаємо з Firebase
+async function fbGet(key){
+  try{
+    const r=await fetch(FB_URL+'/'+key+'.json');
+    if(!r.ok)return null;
+    const d=await r.json();
+    return d;
+  }catch(e){return null;}
+}
+
+// Пишемо у Firebase
+async function fbSet(key,val){
+  try{
+    await fetch(FB_URL+'/'+key+'.json',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(val)});
+  }catch(e){console.error('Firebase write error:',e);}
+}
+
+// Слухаємо зміни у Firebase (real-time)
+function fbListen(key,cb){
+  const es=new EventSource(FB_URL+'/'+key+'.json?accept=text/event-stream');
+  es.addEventListener('put',e=>{
+    try{const d=JSON.parse(e.data);if(d.data!==null)cb(d.data);}catch(x){}
+  });
+  return es;
+}
 
 let PASS='team2024',DAYS=5,INTERVAL=2,curBoard='m',statusFilter=null,dragId=null,autoTimer=null,clockTimer=null;
 let data={m:[],e:[]};
@@ -638,6 +669,7 @@ function load(){
   INTERVAL=parseInt(LS.get('tix_interval')||'2');
   rcProxy=LS.get('tix_proxy')||'';
   names.m=LS.get('tix_nm')||'Канал М';names.e=LS.get('tix_ne')||'Канал Е';
+  // Спочатку грузимо локальний кеш — швидко
   try{const r=LS.get('tix_m');if(r)data.m=JSON.parse(r);}catch(e){data.m=[];}
   try{const r=LS.get('tix_e');if(r)data.e=JSON.parse(r);}catch(e){data.e=[];}
   try{const r=LS.get('tix_rc_m');if(r)rcCfg.m=JSON.parse(r);}catch(e){}
@@ -655,7 +687,35 @@ function load(){
   });
 }
 
-function saveBoard(b){LS.set('tix_'+b,JSON.stringify(data[b]));}
+// Синхронізація з Firebase після входу
+async function syncFromFirebase(){
+  const syncBadge=document.getElementById('fb-sync-badge');
+  if(syncBadge)syncBadge.style.display='flex';
+  try{
+    const [dm,de]=await Promise.all([fbGet('boards/m'),fbGet('boards/e')]);
+    if(dm&&Array.isArray(dm)){data.m=dm;LS.set('tix_m',JSON.stringify(dm));}
+    if(de&&Array.isArray(de)){data.e=de;LS.set('tix_e',JSON.stringify(de));}
+  }catch(e){console.error('Firebase sync error:',e);}
+  if(syncBadge)syncBadge.style.display='none';
+  render();updateTabLabels();
+}
+
+// Слухаємо зміни в реальному часі
+function startFirebaseListeners(){
+  fbListen('boards/m',d=>{
+    if(d&&Array.isArray(d)){data.m=d;LS.set('tix_m',JSON.stringify(d));if(curBoard==='m')render();updateTabLabels();}
+  });
+  fbListen('boards/e',d=>{
+    if(d&&Array.isArray(d)){data.e=d;LS.set('tix_e',JSON.stringify(d));if(curBoard==='e')render();updateTabLabels();}
+  });
+}
+
+async function saveBoard(b){
+  const json=JSON.stringify(data[b]);
+  LS.set('tix_'+b,json); // локальний кеш для швидкості
+  await fbSet('boards/'+b,data[b]); // спільна база
+  updateTabLabels();
+}
 
 function switchBoard(b){
   curBoard=b;statusFilter=null;expandedIds.clear();
@@ -713,7 +773,7 @@ document.getElementById('confirm-ok').onclick=async function(){document.getEleme
 
 async function reloadAllFromRC(){
   const pb=document.getElementById('progress-bar');pb.classList.add('show');setProgress(0,'Підключення...');
-  data[curBoard]=[];LS.del('tix_'+curBoard);expandedIds.clear();render();
+  data[curBoard]=[];LS.del('tix_'+curBoard);await fbSet('boards/'+curBoard,[]);expandedIds.clear();render();
   const msgs=await fetchAllRC(curBoard);
   if(!msgs){setProgress(0,'Помилка з\'єднання');setTimeout(()=>pb.classList.remove('show'),3000);return;}
   setProgress(97,'Парсинг заявок...');
@@ -929,12 +989,17 @@ function onDragLeave(e,col){if(!document.getElementById('col-'+col).contains(e.r
 function onDrop(e,col){e.preventDefault();document.getElementById('col-'+col).classList.remove('drag-active');if(!dragId)return;const t=tickets().find(x=>x.id===dragId);if(t){t.status=col;saveBoard(curBoard);render();}}
 function filterByStatus(s){statusFilter=statusFilter===s?null:s;render();}
 
-document.getElementById('login-btn').onclick=function(){
+document.getElementById('login-btn').onclick=async function(){
   if(document.getElementById('pwd-input').value===PASS){
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').classList.add('visible');
     updateRCStatus();render();startAutoSync();
     clockTimer=setInterval(updateClock,1000);updateClock();
+    // Завантажуємо актуальні дані з Firebase (спільна база)
+    await syncFromFirebase();
+    updateRCStatus();
+    // Слухаємо зміни в реальному часі
+    startFirebaseListeners();
   } else document.getElementById('pwd-err').style.display='block';
 };
 document.getElementById('pwd-input').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('login-btn').click();});
