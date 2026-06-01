@@ -174,8 +174,8 @@ button{cursor:pointer;transition:all .15s}
 .reassign-result.show{display:flex}
 
 /* ═══════════════ KANBAN ═══════════════ */
-.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;align-items:start}
-.col{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;min-height:220px}
+.kanban{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:start}
+.col{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;min-height:220px;min-width:0}
 .col-new-style{border-style:dashed;background:transparent}
 .col-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .col-title{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--text2)}
@@ -184,7 +184,7 @@ button{cursor:pointer;transition:all .15s}
 .col.drag-active{border-color:var(--accent);background:var(--accent-bg2)20;box-shadow:0 0 0 3px var(--accent-bg)}
 
 /* ═══════════════ TICKET ═══════════════ */
-.ticket{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px;overflow:hidden;transition:all .15s;position:relative}
+.ticket{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:5px;overflow:hidden;transition:all .15s;position:relative;min-width:0}
 .ticket::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
 .ticket.status-new::before{background:var(--amber)}
 .ticket.status-active::before{background:var(--accent)}
@@ -193,14 +193,14 @@ button{cursor:pointer;transition:all .15s}
 .ticket.overdue{border-color:var(--red)}
 .ticket.overdue::before{background:var(--red)}
 .ticket:hover{border-color:var(--border2);box-shadow:var(--shadow2);transform:translateY(-1px)}
-.ticket-compact{display:flex;align-items:center;gap:6px;padding:8px 10px 8px 12px;cursor:pointer;user-select:none}
-.ticket-drag-handle{color:var(--border2);font-size:15px;cursor:grab;flex-shrink:0;transition:color .15s}
+.ticket-compact{display:flex;align-items:center;gap:5px;padding:7px 8px 7px 10px;cursor:pointer;user-select:none;overflow:hidden}
+.ticket-drag-handle{color:var(--border2);font-size:13px;cursor:grab;flex-shrink:0;transition:color .15s}
 .ticket-drag-handle:hover{color:var(--text3)}
-.ticket-num{font-size:12px;font-weight:600;color:var(--text);flex:1;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ticket-num{font-size:12px;font-weight:600;color:var(--text);flex:1;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;letter-spacing:-.2px}
 .ticket-compact:hover .ticket-num{color:var(--accent)}
-.ticket-arrow{font-size:15px;color:var(--text3);transition:transform .2s;flex-shrink:0}
+.ticket-arrow{font-size:13px;color:var(--text3);transition:transform .2s;flex-shrink:0}
 .ticket-arrow.open{transform:rotate(90deg)}
-.sbadge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:600;white-space:nowrap;flex-shrink:0;letter-spacing:.2px}
+.sbadge{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;white-space:nowrap;flex-shrink:0;letter-spacing:.1px}
 .sb-new{background:var(--amber-bg);color:var(--amber)}
 .sb-active{background:var(--accent-bg);color:var(--accent)}
 .sb-pause{background:var(--pause-bg);color:var(--pause)}
@@ -286,7 +286,6 @@ button{cursor:pointer;transition:all .15s}
     <input type="password" id="pwd-input" class="login-input" placeholder="Введіть пароль...">
     <p class="err" id="pwd-err"><i class="ti ti-alert-circle" style="vertical-align:-2px"></i> Невірний пароль</p>
     <button class="login-btn" id="login-btn">Увійти <i class="ti ti-arrow-right" style="vertical-align:-2px"></i></button>
-    <p class="login-hint">Пароль за замовчуванням: <strong>team2024</strong></p>
   </div>
 </div>
 
@@ -859,7 +858,7 @@ function mkTicket(t){
   div.innerHTML=`
     <div class="ticket-compact" draggable="true">
       <i class="ti ti-grip-vertical ticket-drag-handle"></i>
-      <span class="ticket-num">Заявка ${t.num}</span>
+      <span class="ticket-num">${t.num}</span>
       <span class="sbadge ${sbClass(t.status)}">${statusLabel(t.status)}</span>
       <i class="ti ti-chevron-right ticket-arrow${isOpen?' open':''}"></i>
     </div>
