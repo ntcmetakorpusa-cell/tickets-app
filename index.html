@@ -40,6 +40,8 @@ button{cursor:pointer}
 .btn-danger:hover{background:#4a1a1a}
 .btn-excel{background:#1a3a1a;color:#4ade80;border-color:#22c55e}
 .btn-excel:hover{background:#1e4a1e}
+.btn-reassign{background:#2d1f0a;color:#f59e0b;border-color:#f59e0b}
+.btn-reassign:hover{background:#3d2a0a}
 .board-header{display:flex;align-items:center;gap:10px;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid #2d3348;flex-wrap:wrap}
 .board-name{font-size:18px;font-weight:600}
 .board-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
@@ -60,6 +62,8 @@ button{cursor:pointer}
 .progress-track{background:#2d3348;border-radius:4px;height:6px;overflow:hidden}
 .progress-fill{background:#4f8ef7;height:100%;border-radius:4px;transition:width .3s}
 .progress-text{font-size:13px;color:#94a3b8}
+.reassign-result{background:#1a2d0a;border:1px solid #4ade80;border-radius:8px;padding:10px 16px;margin-bottom:1rem;font-size:13px;color:#4ade80;display:none;gap:12px;flex-wrap:wrap}
+.reassign-result.show{display:flex}
 .kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:start}
 .col{background:#1a1d2e;border:1px solid #2d3348;border-radius:10px;padding:10px;min-height:200px}
 .col-new-style{border-style:dashed}
@@ -167,9 +171,10 @@ button{cursor:pointer}
       </button>
     </div>
     <div class="hrow">
+      <button class="btn btn-reassign" id="reassign-btn" onclick="reassignAllStatuses()"><i class="ti ti-wand"></i> Переприсвоїти статуси</button>
       <button class="btn" id="sync-btn" onclick="syncBoard()"><i class="ti ti-refresh"></i> Оновити</button>
       <button class="btn btn-danger" id="reload-btn" onclick="confirmReload()"><i class="ti ti-refresh-alert"></i> Перезавантажити всі</button>
-      <button class="btn btn-excel" id="export-btn" onclick="exportXLSX()"><i class="ti ti-file-spreadsheet"></i> Excel</button>
+      <button class="btn btn-excel" onclick="exportXLSX()"><i class="ti ti-file-spreadsheet"></i> Excel</button>
       <button class="btn" id="settings-btn"><i class="ti ti-settings"></i> Налаштування</button>
       <button class="btn btn-primary" id="add-btn"><i class="ti ti-plus"></i> Нова заявка</button>
       <button class="btn" id="logout-btn"><i class="ti ti-logout"></i></button>
@@ -191,6 +196,8 @@ button{cursor:pointer}
     <div class="progress-text" id="progress-text">Завантаження...</div>
     <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
   </div>
+
+  <div class="reassign-result" id="reassign-result"></div>
 
   <div class="stats-row">
     <div class="stat" id="stat-new" onclick="filterByStatus('new')"><div class="stat-label">Без статусу</div><div class="stat-val" id="s-new" style="color:#f59e0b">0</div></div>
@@ -235,7 +242,7 @@ button{cursor:pointer}
 <div class="modal-bg" id="confirm-modal">
   <div class="modal" style="max-width:420px">
     <p class="modal-title">⚠️ Перезавантажити всі заявки?</p>
-    <p style="font-size:14px;color:#94a3b8;line-height:1.6">Всі поточні заявки цієї дошки будуть <strong style="color:#f87171">видалені</strong> і завантажені заново з Rocket.Chat.<br><br>Коментарі які ви додавали вручну — також видаляться.<br><br>Продовжити?</p>
+    <p style="font-size:14px;color:#94a3b8;line-height:1.6">Всі поточні заявки цієї дошки будуть <strong style="color:#f87171">видалені</strong> і завантажені заново з Rocket.Chat.<br><br>Коментарі які ви додавали вручну — також видаляться. Продовжити?</p>
     <div class="modal-footer">
       <button class="btn" id="confirm-cancel">Скасувати</button>
       <button class="btn btn-danger" id="confirm-ok">Так, перезавантажити</button>
@@ -342,12 +349,76 @@ let data={m:[],e:[]};
 let rcCfg={m:{host:'',room:'',uid:'',token:''},e:{host:'',room:'',uid:'',token:''}};
 let rcProxy='';
 let names={m:'Канал М',e:'Канал Е'};
-let KEYWORDS=[
-  {word:'в роботі',status:'active'},{word:'в работе',status:'active'},{word:'прийнято',status:'active'},{word:'виконується',status:'active'},
-  {word:'пауза',status:'pause'},{word:'на паузі',status:'pause'},{word:'очікування',status:'pause'},{word:'відкладено',status:'pause'},
-  {word:'готово',status:'done'},{word:'закрито',status:'done'},{word:'виконано',status:'done'},{word:'відвантажено',status:'done'},{word:'завершено',status:'done'}
-];
 let expandedIds=new Set();
+
+// ---- КЛЮЧОВІ СЛОВА (case-insensitive) ----
+// Порядок важливий — першим спрацьовує перший збіг
+const STAN_MAP = [
+  // В роботі
+  {words:['в роботі','в работе','в роботе','вроботі','прийнято','виконується','виконується'],status:'active'},
+  // На паузі
+  {words:['на паузі','на паузе','на паузі','пауза'],status:'pause'},
+  // Закрито
+  {words:['закрито','закрыто','виконано','відвантажено','готово','завершено','виконано'],status:'done'},
+];
+
+// Визначаємо статус за полем Стан — case-insensitive, trim
+function detectStatus(stan){
+  if(!stan)return 'new';
+  const s=stan.trim();
+  if(!s||s==='-'||s==='—'||s==='–')return 'new';
+  const low=s.toLowerCase();
+  for(const group of STAN_MAP){
+    for(const word of group.words){
+      if(low.includes(word.toLowerCase()))return group.status;
+    }
+  }
+  return 'new';
+}
+
+// ---- ПЕРЕПРИСВОЄННЯ СТАТУСІВ ----
+// Пройти по всіх вже завантажених заявках і переставити по колонках
+function reassignAllStatuses(){
+  const before={new:0,active:0,pause:0,done:0};
+  const after={new:0,active:0,pause:0,done:0};
+
+  // Рахуємо до
+  data[curBoard].forEach(t=>{ if(before[t.status]!==undefined)before[t.status]++; });
+
+  // Переприсвоюємо — тільки якщо заявка не була змінена вручну
+  // (для заявок з RC беремо поле stan, для ручних — не чіпаємо)
+  let changed=0;
+  data[curBoard].forEach(t=>{
+    if(t.fromRC&&t.stan!==undefined){
+      const newStatus=detectStatus(t.stan);
+      if(newStatus!==t.status){t.status=newStatus;changed++;}
+    } else if(t.fromRC){
+      // Перепарсити з raw якщо є
+      const newStatus=t.stan?detectStatus(t.stan):'new';
+      if(newStatus!==t.status){t.status=newStatus;changed++;}
+    }
+  });
+
+  // Рахуємо після
+  data[curBoard].forEach(t=>{ if(after[t.status]!==undefined)after[t.status]++; });
+
+  saveBoard(curBoard);
+  expandedIds.clear();
+
+  // Показуємо результат
+  const res=document.getElementById('reassign-result');
+  res.innerHTML=`
+    <span><i class="ti ti-wand" style="vertical-align:-2px"></i> Змінено ${changed} заявок</span>
+    <span>Без статусу: <strong>${after.new}</strong></span>
+    <span>В роботі: <strong>${after.active}</strong></span>
+    <span>На паузі: <strong>${after.pause}</strong></span>
+    <span>Закрито: <strong>${after.done}</strong></span>
+  `;
+  res.classList.add('show');
+  setTimeout(()=>res.classList.remove('show'),8000);
+
+  render();
+}
 
 // ---- ПАРСЕР ----
 function parseTicket(raw){
@@ -396,13 +467,6 @@ function parseTicket(raw){
   return r;
 }
 
-function detectStatus(stan){
-  if(!stan||!stan.trim())return 'new';
-  const low=stan.toLowerCase();
-  for(const kw of KEYWORDS){if(low.includes(kw.word.toLowerCase()))return kw.status;}
-  return 'new';
-}
-
 function isZamovlennya(text){return /замовлення/i.test(text)||/№\s*\d/.test(text);}
 function statusLabel(s){return s==='new'?'Без статусу':s==='active'?'В роботі':s==='pause'?'На паузі':'Закрито';}
 function sbClass(s){return s==='new'?'sb-new':s==='active'?'sb-active':s==='pause'?'sb-pause':'sb-done';}
@@ -423,7 +487,6 @@ function load(){
   rcProxy=LS.get('tix_proxy')||'';
   names.m=LS.get('tix_nm')||'Канал М';
   names.e=LS.get('tix_ne')||'Канал Е';
-  try{const r=LS.get('tix_kw');if(r)KEYWORDS=JSON.parse(r);}catch(e){}
   try{const r=LS.get('tix_m');if(r)data.m=JSON.parse(r);}catch(e){data.m=[];}
   try{const r=LS.get('tix_e');if(r)data.e=JSON.parse(r);}catch(e){data.e=[];}
   try{const r=LS.get('tix_rc_m');if(r)rcCfg.m=JSON.parse(r);}catch(e){}
@@ -466,7 +529,6 @@ function updateTabLabels(){
   document.getElementById('tab-name-e').textContent=names.e;
 }
 
-// Завантажити ВСІ повідомлення з RC — paginated
 async function fetchAllRC(b){
   const c=rcCfg[b];
   if(!c.host||!c.uid||!c.token||!c.room||!rcProxy)return null;
@@ -481,8 +543,7 @@ async function fetchAllRC(b){
       all=all.concat(msgs);
       const total=json.total||0;
       offset+=count;
-      // Оновлюємо прогрес
-      const pct=total>0?Math.min(100,Math.round(all.length/total*100)):50;
+      const pct=total>0?Math.min(95,Math.round(all.length/total*100)):50;
       setProgress(pct,`Завантажено ${all.length} з ${total} повідомлень...`);
       if(msgs.length<count||all.length>=total)break;
     }catch(e){break;}
@@ -495,47 +556,23 @@ function setProgress(pct,text){
   document.getElementById('progress-text').textContent=text;
 }
 
-// Підтвердження перезавантаження
 function confirmReload(){
   const c=rcCfg[curBoard];
-  if(!c.host||!c.uid||!c.token||!c.room||!rcProxy){
-    alert('Спочатку налаштуйте підключення до Rocket.Chat в Налаштуваннях → Rocket.Chat');return;
-  }
+  if(!c.host||!c.uid||!c.token||!c.room||!rcProxy){alert('Спочатку налаштуйте підключення до Rocket.Chat в Налаштуваннях → Rocket.Chat');return;}
   document.getElementById('confirm-modal').classList.add('open');
 }
 document.getElementById('confirm-cancel').onclick=function(){document.getElementById('confirm-modal').classList.remove('open');};
-document.getElementById('confirm-ok').onclick=async function(){
-  document.getElementById('confirm-modal').classList.remove('open');
-  await reloadAllFromRC();
-};
+document.getElementById('confirm-ok').onclick=async function(){document.getElementById('confirm-modal').classList.remove('open');await reloadAllFromRC();};
 
 async function reloadAllFromRC(){
-  // Показуємо прогрес
   const pb=document.getElementById('progress-bar');pb.classList.add('show');
   setProgress(0,'Підключення до Rocket.Chat...');
-
-  // Видаляємо старі дані цієї дошки
-  data[curBoard]=[];
-  LS.del('tix_'+curBoard);
-  expandedIds.clear();
-  render();
-
+  data[curBoard]=[];LS.del('tix_'+curBoard);expandedIds.clear();render();
   const msgs=await fetchAllRC(curBoard);
-
-  if(!msgs){
-    setProgress(0,'Помилка з\'єднання');
-    setTimeout(()=>pb.classList.remove('show'),3000);
-    return;
-  }
-
-  setProgress(90,'Парсинг заявок...');
-
-  const seenLocal=new Set();
-  let added=0;
-
-  // Сортуємо від старих до нових
+  if(!msgs){setProgress(0,'Помилка з\'єднання');setTimeout(()=>pb.classList.remove('show'),3000);return;}
+  setProgress(97,'Парсинг заявок...');
+  const seenLocal=new Set();let added=0;
   msgs.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
-
   msgs.forEach(msg=>{
     if(!seenLocal.has(msg._id)&&msg.msg&&msg.msg.trim()){
       const text=msg.msg.trim();
@@ -543,49 +580,37 @@ async function reloadAllFromRC(){
         seenLocal.add(msg._id);
         const p=parseTicket(text);
         const det=detectStatus(p.stan);
-        data[curBoard].push({
-          id:mkId(),rcMsgId:msg._id,
-          num:p.num,date:p.date,pidstava:p.pidstava,
-          virib:p.virib,kilkist:p.kilkist,zamovnyk:p.zamovnyk,
-          termin:p.termin,stan:p.stan,vidvant:p.vidvant,extra:p.extra,
-          raw:text,status:det,
-          created:msg.ts?new Date(msg.ts).getTime():Date.now(),
-          comments:[],fromRC:true
-        });
+        data[curBoard].push({id:mkId(),rcMsgId:msg._id,num:p.num,date:p.date,pidstava:p.pidstava,virib:p.virib,kilkist:p.kilkist,zamovnyk:p.zamovnyk,termin:p.termin,stan:p.stan,vidvant:p.vidvant,extra:p.extra,raw:text,status:det,created:msg.ts?new Date(msg.ts).getTime():Date.now(),comments:[],fromRC:true});
         added++;
       }
     }
   });
-
   saveBoard(curBoard);
   setProgress(100,`Готово! Завантажено ${added} заявок.`);
   document.getElementById('last-sync').textContent=`Перезавантажено о ${fmtTime(Date.now())} (${added} заявок)`;
   setTimeout(()=>pb.classList.remove('show'),4000);
   updateTabLabels();render();
+  // Автоматично переприсвоюємо після завантаження
+  setTimeout(()=>reassignAllStatuses(),500);
 }
 
 async function syncBoard(){
   const btn=document.getElementById('sync-btn');
   btn.innerHTML='<span class="spin"></span>';btn.disabled=true;
   const c=rcCfg[curBoard];
-  if(!c.host||!c.uid||!c.token||!c.room||!rcProxy){
-    btn.innerHTML='<i class="ti ti-refresh"></i> Оновити';btn.disabled=false;return;
-  }
+  if(!c.host||!c.uid||!c.token||!c.room||!rcProxy){btn.innerHTML='<i class="ti ti-refresh"></i> Оновити';btn.disabled=false;return;}
   const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(c.room)}&count=50`;
   const seenLocal=new Set(data[curBoard].map(t=>t.rcMsgId).filter(Boolean));
   try{
     const res=await fetch(`${rcProxy}?host=${encodeURIComponent(c.host)}&path=${encodeURIComponent(path)}`,{headers:{'X-Auth-Token':c.token,'X-User-Id':c.uid}});
     if(res.ok){
-      const json=await res.json();
-      const msgs=json.messages||[];
-      let added=0;
+      const json=await res.json();const msgs=json.messages||[];let added=0;
       msgs.forEach(msg=>{
         if(!seenLocal.has(msg._id)&&msg.msg&&msg.msg.trim()){
           const text=msg.msg.trim();
           if(isZamovlennya(text)){
             seenLocal.add(msg._id);
-            const p=parseTicket(text);
-            const det=detectStatus(p.stan);
+            const p=parseTicket(text);const det=detectStatus(p.stan);
             data[curBoard].push({id:mkId(),rcMsgId:msg._id,num:p.num,date:p.date,pidstava:p.pidstava,virib:p.virib,kilkist:p.kilkist,zamovnyk:p.zamovnyk,termin:p.termin,stan:p.stan,vidvant:p.vidvant,extra:p.extra,raw:text,status:det,created:msg.ts?new Date(msg.ts).getTime():Date.now(),comments:[],fromRC:true});
             added++;
           }
@@ -622,52 +647,25 @@ function startAutoSync(){
   else document.getElementById('auto-sync-info').textContent='';
 }
 
-// ---- EXCEL EXPORT ----
 function exportXLSX(){
-  if(!window.XLSX){alert('Бібліотека XLSX ще завантажується, спробуйте ще раз.');return;}
+  if(!window.XLSX){alert('Бібліотека XLSX ще завантажується');return;}
   const wb=XLSX.utils.book_new();
-
   ['m','e'].forEach(b=>{
-    const rows=data[b].map(t=>({
-      'Номер':t.num||'',
-      'Дата':t.date||'',
-      'Підстава':t.pidstava||'',
-      'Виріб':(t.virib||'').replace(/\n/g,'; '),
-      'Кількість':t.kilkist||'',
-      'Замовник':t.zamovnyk||'',
-      'Термін':t.termin||'',
-      'Стан (оригінал)':t.stan||'',
-      'Статус':statusLabel(t.status),
-      'Джерело':t.fromRC?'Rocket.Chat':'Вручну',
-      'Дата додавання':fmt(t.created),
-      'Коментарів':(t.comments||[]).length
-    }));
-
-    // Якщо немає даних — порожній лист
+    const rows=data[b].map(t=>({'Номер':t.num||'','Дата':t.date||'','Підстава':t.pidstava||'','Виріб':(t.virib||'').replace(/\n/g,'; '),'Кількість':t.kilkist||'','Замовник':t.zamovnyk||'','Термін':t.termin||'','Стан (оригінал)':t.stan||'','Статус':statusLabel(t.status),'Джерело':t.fromRC?'Rocket.Chat':'Вручну','Дата додавання':fmt(t.created),'Коментарів':(t.comments||[]).length}));
     const ws=rows.length>0?XLSX.utils.json_to_sheet(rows):XLSX.utils.aoa_to_sheet([['Немає даних']]);
-
-    // Ширина колонок
-    if(rows.length>0){
-      ws['!cols']=[{wch:20},{wch:12},{wch:25},{wch:35},{wch:12},{wch:15},{wch:20},{wch:15},{wch:12},{wch:12},{wch:15},{wch:10}];
-    }
-
+    if(rows.length>0)ws['!cols']=[{wch:22},{wch:12},{wch:25},{wch:35},{wch:12},{wch:18},{wch:20},{wch:15},{wch:12},{wch:12},{wch:15},{wch:10}];
     XLSX.utils.book_append_sheet(wb,ws,names[b]);
   });
-
-  // Зведений лист
   const summary=[];
   ['m','e'].forEach(b=>{
-    const all=data[b];
     const cnt={new:0,active:0,pause:0,done:0};
-    all.forEach(t=>{if(cnt[t.status]!==undefined)cnt[t.status]++;});
-    summary.push({'Дошка':names[b],'Всього':all.length,'Без статусу':cnt.new,'В роботі':cnt.active,'На паузі':cnt.pause,'Закрито':cnt.done});
+    data[b].forEach(t=>{if(cnt[t.status]!==undefined)cnt[t.status]++;});
+    summary.push({'Дошка':names[b],'Всього':data[b].length,'Без статусу':cnt.new,'В роботі':cnt.active,'На паузі':cnt.pause,'Закрито':cnt.done});
   });
-  const wsSummary=XLSX.utils.json_to_sheet(summary);
-  wsSummary['!cols']=[{wch:15},{wch:10},{wch:14},{wch:12},{wch:12},{wch:12}];
-  XLSX.utils.book_append_sheet(wb,wsSummary,'Зведення');
-
-  const date=new Date().toISOString().slice(0,10);
-  XLSX.writeFile(wb,`zamovlennya_${date}.xlsx`);
+  const wss=XLSX.utils.json_to_sheet(summary);
+  wss['!cols']=[{wch:15},{wch:10},{wch:14},{wch:12},{wch:12},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,wss,'Зведення');
+  XLSX.writeFile(wb,`zamovlennya_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 function getFiltered(){
@@ -697,8 +695,7 @@ function render(){
   const all={new:[],active:[],pause:[],done:[]};
   tickets().forEach(t=>{if(all[t.status])all[t.status].push(t);});
   ['new','active','pause','done'].forEach(s=>{
-    const list=document.getElementById('list-'+s);
-    list.innerHTML='';
+    const list=document.getElementById('list-'+s);list.innerHTML='';
     if(!cols[s].length){list.innerHTML=`<div class="empty-col"><i class="ti ti-inbox"></i>Порожньо</div>`;}
     else{cols[s].sort((a,b)=>b.created-a.created).forEach(t=>list.appendChild(mkTicket(t)));}
     document.getElementById('cnt-'+s).textContent=all[s].length;
@@ -716,18 +713,12 @@ function render(){
 }
 
 function mkTicket(t){
-  const od=isOverdue(t);
-  const isOpen=expandedIds.has(t.id);
+  const od=isOverdue(t);const isOpen=expandedIds.has(t.id);
   const div=document.createElement('div');
-  div.className=`ticket status-${t.status}${od?' overdue':''}`;
-  div.dataset.id=t.id;
-
+  div.className=`ticket status-${t.status}${od?' overdue':''}`;div.dataset.id=t.id;
   const viribHtml=t.virib?t.virib.split('\n').map(l=>`<div style="padding-left:4px">• ${l}</div>`).join(''):'';
   const comments=t.comments||[];
-  const commentsHtml=comments.length
-    ?comments.map(c=>`<div class="exp-comment"><div class="exp-comment-header"><span class="exp-comment-author">${c.author||'Анонім'}</span><span class="exp-comment-date">${fmt(c.ts)}</span></div><div class="exp-comment-text">${c.text}</div></div>`).join('')
-    :'<div style="font-size:12px;color:#475569">Коментарів немає</div>';
-
+  const commentsHtml=comments.length?comments.map(c=>`<div class="exp-comment"><div class="exp-comment-header"><span class="exp-comment-author">${c.author||'Анонім'}</span><span class="exp-comment-date">${fmt(c.ts)}</span></div><div class="exp-comment-text">${c.text}</div></div>`).join(''):'<div style="font-size:12px;color:#475569">Коментарів немає</div>';
   div.innerHTML=`
     <div class="ticket-compact" draggable="true">
       <i class="ti ti-grip-vertical ticket-drag-handle"></i>
@@ -768,7 +759,6 @@ function mkTicket(t){
   const compact=div.querySelector('.ticket-compact');
   const expanded=div.querySelector('.ticket-expanded');
   const arrow=div.querySelector('.ticket-arrow');
-
   compact.addEventListener('dragstart',e=>{e.stopPropagation();dragId=t.id;e.dataTransfer.effectAllowed='move';});
   compact.addEventListener('dragend',()=>{dragId=null;document.querySelectorAll('.col').forEach(c=>c.classList.remove('drag-active'));});
   compact.addEventListener('click',e=>{
@@ -776,20 +766,18 @@ function mkTicket(t){
     if(expandedIds.has(t.id)){expandedIds.delete(t.id);expanded.classList.remove('open');arrow.classList.remove('open');}
     else{expandedIds.add(t.id);expanded.classList.add('open');arrow.classList.add('open');}
   });
-
   const acceptBtn=div.querySelector('.accept-btn');
   if(acceptBtn)acceptBtn.addEventListener('click',e=>{e.stopPropagation();changeStatus(t.id,'active');});
   div.querySelector('.status-sel').addEventListener('change',function(e){e.stopPropagation();changeStatus(t.id,this.value);});
   div.querySelector('.del-btn').addEventListener('click',e=>{e.stopPropagation();deleteTicket(t.id);});
   div.querySelector('.c-send-btn').addEventListener('click',e=>{
     e.stopPropagation();
-    const nameInput=div.querySelector('.c-name-input');
-    const textInput=div.querySelector('.c-text-input');
-    const text=textInput.value.trim();if(!text)return;
+    const ni=div.querySelector('.c-name-input');const ti=div.querySelector('.c-text-input');
+    const text=ti.value.trim();if(!text)return;
     const tk=tickets().find(x=>x.id===t.id);if(!tk)return;
     if(!tk.comments)tk.comments=[];
-    tk.comments.push({author:nameInput.value.trim()||'Анонім',text,ts:Date.now()});
-    textInput.value='';saveBoard(curBoard);expandedIds.add(t.id);render();
+    tk.comments.push({author:ni.value.trim()||'Анонім',text,ts:Date.now()});
+    ti.value='';saveBoard(curBoard);expandedIds.add(t.id);render();
   });
   div.querySelector('.c-text-input').addEventListener('keydown',function(e){if(e.key==='Enter'){e.stopPropagation();div.querySelector('.c-send-btn').click();}});
   div.querySelector('.c-text-input').addEventListener('click',e=>e.stopPropagation());
@@ -797,19 +785,13 @@ function mkTicket(t){
   return div;
 }
 
-function changeStatus(id,newStatus){
-  const t=tickets().find(x=>x.id===id);
-  if(t){t.status=newStatus;saveBoard(curBoard);expandedIds.add(id);render();}
-}
-function deleteTicket(id){
-  expandedIds.delete(id);data[curBoard]=data[curBoard].filter(t=>t.id!==id);saveBoard(curBoard);render();
-}
+function changeStatus(id,s){const t=tickets().find(x=>x.id===id);if(t){t.status=s;saveBoard(curBoard);expandedIds.add(id);render();}}
+function deleteTicket(id){expandedIds.delete(id);data[curBoard]=data[curBoard].filter(t=>t.id!==id);saveBoard(curBoard);render();}
 function onDragOver(e,col){e.preventDefault();document.getElementById('col-'+col).classList.add('drag-active');}
 function onDragLeave(e,col){if(!document.getElementById('col-'+col).contains(e.relatedTarget))document.getElementById('col-'+col).classList.remove('drag-active');}
 function onDrop(e,col){
   e.preventDefault();document.getElementById('col-'+col).classList.remove('drag-active');
-  if(!dragId)return;
-  const t=tickets().find(x=>x.id===dragId);
+  if(!dragId)return;const t=tickets().find(x=>x.id===dragId);
   if(t){t.status=col;saveBoard(curBoard);render();}
 }
 function filterByStatus(s){statusFilter=statusFilter===s?null:s;render();}
@@ -863,7 +845,9 @@ document.getElementById('settings-save').onclick=function(){
     const ne=document.getElementById('s-name-e').value.trim()||'Канал Е';
     names.m=nm;names.e=ne;LS.set('tix_nm',nm);LS.set('tix_ne',ne);
     DAYS=parseInt(document.getElementById('s-days').value)||5;LS.set('tix_days',String(DAYS));
-    INTERVAL=parseInt(document.getElementById('s-interval').value)||0;LS.set('tix_interval',String(INTERVAL));
+    INTERVAL=parseInt(LS.get('tix_interval')||'2');
+    const newInterval=parseInt(document.getElementById('s-interval').value)||0;
+    INTERVAL=newInterval;LS.set('tix_interval',String(INTERVAL));
     ok.style.display='block';setTimeout(()=>ok.style.display='none',2500);
     document.getElementById('bh-name').textContent=names[curBoard];
     updateTabLabels();startAutoSync();render();
@@ -883,13 +867,16 @@ function switchSettingsTab(tab){
   document.getElementById('settings-save').style.display=tab==='keywords'?'none':'';
 }
 function renderKW(){
-  document.getElementById('kw-body').innerHTML=KEYWORDS.map((kw,i)=>`<tr><td><span class="kw-tag">${kw.word}</span></td><td style="color:#64748b">${statusLabel(kw.status)}</td><td><button class="icon-btn" style="color:#f87171" onclick="delKW(${i})"><i class="ti ti-x"></i></button></td></tr>`).join('');
+  document.getElementById('kw-body').innerHTML=STAN_MAP.map((group,gi)=>
+    group.words.map((word,wi)=>`<tr><td><span class="kw-tag">${word}</span></td><td style="color:#64748b">${statusLabel(group.status)}</td><td></td></tr>`).join('')
+  ).join('');
 }
-function delKW(i){KEYWORDS.splice(i,1);LS.set('tix_kw',JSON.stringify(KEYWORDS));renderKW();}
 document.getElementById('kw-add').onclick=function(){
   const word=document.getElementById('kw-word').value.trim();if(!word)return;
-  KEYWORDS.unshift({word,status:document.getElementById('kw-status').value});
-  document.getElementById('kw-word').value='';LS.set('tix_kw',JSON.stringify(KEYWORDS));renderKW();
+  const status=document.getElementById('kw-status').value;
+  const group=STAN_MAP.find(g=>g.status===status);
+  if(group)group.words.unshift(word);
+  document.getElementById('kw-word').value='';renderKW();
   const ok=document.getElementById('kw-ok');ok.style.display='block';setTimeout(()=>ok.style.display='none',1500);
 };
 
