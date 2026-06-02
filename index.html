@@ -691,29 +691,52 @@ function load(){
 async function syncFromFirebase(){
   const syncBadge=document.getElementById('fb-sync-badge');
   if(syncBadge)syncBadge.style.display='flex';
+  let ok=false;
   try{
     const [dm,de]=await Promise.all([fbGet('boards/m'),fbGet('boards/e')]);
-    if(dm&&Array.isArray(dm)){data.m=dm;LS.set('tix_m',JSON.stringify(dm));}
-    if(de&&Array.isArray(de)){data.e=de;LS.set('tix_e',JSON.stringify(de));}
+    // Firebase повертає об'єкт з числовими ключами — конвертуємо в масив
+    function toArr(d){
+      if(!d)return null;
+      if(Array.isArray(d))return d;
+      if(typeof d==='object')return Object.values(d).filter(Boolean);
+      return null;
+    }
+    const am=toArr(dm);const ae=toArr(de);
+    if(am&&am.length>0){data.m=am;LS.set('tix_m',JSON.stringify(am));ok=true;}
+    if(ae&&ae.length>0){data.e=ae;LS.set('tix_e',JSON.stringify(ae));ok=true;}
   }catch(e){console.error('Firebase sync error:',e);}
   if(syncBadge)syncBadge.style.display='none';
   render();updateTabLabels();
+  return ok;
 }
 
 // Слухаємо зміни в реальному часі
+let fbListeners=[];
 function startFirebaseListeners(){
-  fbListen('boards/m',d=>{
-    if(d&&Array.isArray(d)){data.m=d;LS.set('tix_m',JSON.stringify(d));if(curBoard==='m')render();updateTabLabels();}
+  // Закриваємо старі
+  fbListeners.forEach(es=>{try{es.close();}catch(e){}});
+  fbListeners=[];
+  function toArr(d){
+    if(!d)return null;
+    if(Array.isArray(d))return d;
+    if(typeof d==='object')return Object.values(d).filter(Boolean);
+    return null;
+  }
+  const esM=fbListen('boards/m',d=>{
+    const arr=toArr(d);
+    if(arr&&arr.length>0){data.m=arr;LS.set('tix_m',JSON.stringify(arr));if(curBoard==='m'){expandedIds.clear();render();}updateTabLabels();}
   });
-  fbListen('boards/e',d=>{
-    if(d&&Array.isArray(d)){data.e=d;LS.set('tix_e',JSON.stringify(d));if(curBoard==='e')render();updateTabLabels();}
+  const esE=fbListen('boards/e',d=>{
+    const arr=toArr(d);
+    if(arr&&arr.length>0){data.e=arr;LS.set('tix_e',JSON.stringify(arr));if(curBoard==='e'){expandedIds.clear();render();}updateTabLabels();}
   });
+  fbListeners=[esM,esE];
 }
 
 async function saveBoard(b){
-  const json=JSON.stringify(data[b]);
-  LS.set('tix_'+b,json); // локальний кеш для швидкості
-  await fbSet('boards/'+b,data[b]); // спільна база
+  LS.set('tix_'+b,JSON.stringify(data[b]));
+  // Зберігаємо як масив напряму
+  await fbSet('boards/'+b,data[b]);
   updateTabLabels();
 }
 
@@ -741,19 +764,51 @@ function updateTabLabels(){
 }
 
 async function fetchAllRC(b){
-  const c=rcCfg[b];if(!c.host||!c.uid||!c.token||!c.room||!rcProxy)return null;
-  let all=[];let offset=0;const count=100;
+  const cfg=rcCfg[b];
+  if(!cfg.host||!cfg.uid||!cfg.token||!cfg.room||!rcProxy)return null;
+
+  let all=[];
+  let offset=0;
+  const COUNT=200; // оптимальна порція — Rocket.Chat стабільно віддає по 200
+  let total=0;
+  let retries=0;
+  const MAX_RETRIES=3;
+
+  setProgress(0,'Підключення до Rocket.Chat...');
+
   while(true){
-    const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(c.room)}&count=${count}&offset=${offset}`;
+    const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(cfg.room)}&count=${COUNT}&offset=${offset}&sort=${encodeURIComponent('{"ts":1}')}`;
     try{
-      const res=await fetch(`${rcProxy}?host=${encodeURIComponent(c.host)}&path=${encodeURIComponent(path)}`,{headers:{'X-Auth-Token':c.token,'X-User-Id':c.uid}});
-      if(!res.ok)break;
-      const json=await res.json();const msgs=json.messages||[];
-      all=all.concat(msgs);const total=json.total||0;offset+=count;
-      const pct=total>0?Math.min(95,Math.round(all.length/total*100)):50;
+      const res=await fetch(
+        `${rcProxy}?host=${encodeURIComponent(cfg.host)}&path=${encodeURIComponent(path)}`,
+        {headers:{'X-Auth-Token':cfg.token,'X-User-Id':cfg.uid}}
+      );
+      if(!res.ok){
+        retries++;
+        if(retries>=MAX_RETRIES)break;
+        await new Promise(r=>setTimeout(r,1000*retries));
+        continue;
+      }
+      retries=0;
+      const json=await res.json();
+      const msgs=json.messages||[];
+      total=json.total||total;
+      all=all.concat(msgs);
+      offset+=msgs.length;
+
+      const pct=total>0?Math.min(95,Math.round(all.length/total*100)):Math.min(95,offset/10);
       setProgress(pct,`Завантажено ${all.length} з ${total} повідомлень...`);
-      if(msgs.length<count||all.length>=total)break;
-    }catch(e){break;}
+
+      // Виходимо якщо отримали менше ніж запросили або досягли кінця
+      if(msgs.length<COUNT||all.length>=total)break;
+
+      // Мала пауза щоб не перевантажити сервер
+      await new Promise(r=>setTimeout(r,200));
+    }catch(e){
+      retries++;
+      if(retries>=MAX_RETRIES)break;
+      await new Promise(r=>setTimeout(r,1000*retries));
+    }
   }
   return all;
 }
@@ -1008,6 +1063,7 @@ document.getElementById('logout-btn').onclick=function(){
   document.getElementById('login-screen').style.display='flex';
   document.getElementById('pwd-input').value='';document.getElementById('pwd-err').style.display='none';
   if(autoTimer)clearInterval(autoTimer);if(clockTimer)clearInterval(clockTimer);
+  fbListeners.forEach(es=>{try{es.close();}catch(e){}});fbListeners=[];
 };
 
 document.getElementById('add-btn').onclick=function(){
