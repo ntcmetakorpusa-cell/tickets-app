@@ -830,14 +830,20 @@ async function reloadAllFromRC(){
   const pb=document.getElementById('progress-bar');pb.classList.add('show');setProgress(0,'Підключення...');
   data[curBoard]=[];LS.del('tix_'+curBoard);await fbSet('boards/'+curBoard,[]);expandedIds.clear();render();
   const msgs=await fetchAllRC(curBoard);
-  if(!msgs){setProgress(0,'Помилка з\'єднання');setTimeout(()=>pb.classList.remove('show'),3000);return;}
+  console.log('[RC] fetchAllRC повернув:', msgs ? msgs.length : 'null');
+  if(!msgs||msgs.length===0){setProgress(0,'Помилка з\'єднання або порожній канал');setTimeout(()=>pb.classList.remove('show'),3000);return;}
   setProgress(97,'Парсинг заявок...');
   const seen=new Set();let added=0;let skipped=0;
   msgs.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
   console.log(`[RC] Всього повідомлень: ${msgs.length}`);
+  // Показуємо перші 5 повідомлень для діагностики
+  msgs.slice(0,5).forEach((msg,i)=>{
+    console.log(`[RC msg ${i}]:`, JSON.stringify(msg.msg||'').slice(0,200));
+  });
   msgs.forEach(msg=>{
     if(!seen.has(msg._id)&&msg.msg&&msg.msg.trim()){
       const text=msg.msg.trim();
+      console.log('[TEST]', isValidTicket(text), JSON.stringify(text.slice(0,80)));
       if(isValidTicket(text)){
         seen.add(msg._id);const p=parseTicket(text);const det=detectStatus(p.stan);
         data[curBoard].push({id:mkId(),rcMsgId:msg._id,num:p.num,date:p.date,pidstava:p.pidstava,virib:p.virib,kilkist:p.kilkist,zamovnyk:p.zamovnyk,termin:p.termin,stan:p.stan,vidvant:p.vidvant,extra:p.extra,raw:text,status:det,created:msg.ts?new Date(msg.ts).getTime():Date.now(),comments:[],fromRC:true});
