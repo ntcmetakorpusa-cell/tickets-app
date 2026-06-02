@@ -543,11 +543,18 @@ async function fbSet(key,val){
 
 // Слухаємо зміни у Firebase (real-time)
 function fbListen(key,cb){
-  const es=new EventSource(FB_URL+'/'+key+'.json?accept=text/event-stream');
-  es.addEventListener('put',e=>{
-    try{const d=JSON.parse(e.data);if(d.data!==null)cb(d.data);}catch(x){}
-  });
-  return es;
+  // Polling замість EventSource (Firebase SSE не працює через CORS)
+  let lastData=null;
+  const poll=async()=>{
+    try{
+      const d=await fbGet(key);
+      const str=JSON.stringify(d);
+      if(str!==lastData){lastData=str;if(d!==null)cb(d);}
+    }catch(e){}
+  };
+  poll(); // одразу
+  const timer=setInterval(poll,30000); // кожні 30 секунд
+  return {close:()=>clearInterval(timer)};
 }
 
 let PASS='team2024',DAYS=5,INTERVAL=2,curBoard='m',statusFilter=null,dragId=null,autoTimer=null,clockTimer=null;
@@ -688,20 +695,21 @@ function load(){
 }
 
 // Синхронізація з Firebase після входу
+function toArr(d){
+  if(!d)return null;
+  if(Array.isArray(d))return d.filter(Boolean);
+  if(typeof d==='object')return Object.values(d).filter(x=>x&&typeof x==='object');
+  return null;
+}
+
 async function syncFromFirebase(){
   const syncBadge=document.getElementById('fb-sync-badge');
   if(syncBadge)syncBadge.style.display='flex';
   let ok=false;
   try{
     const [dm,de]=await Promise.all([fbGet('boards/m'),fbGet('boards/e')]);
-    // Firebase повертає об'єкт з числовими ключами — конвертуємо в масив
-    function toArr(d){
-      if(!d)return null;
-      if(Array.isArray(d))return d;
-      if(typeof d==='object')return Object.values(d).filter(Boolean);
-      return null;
-    }
     const am=toArr(dm);const ae=toArr(de);
+    console.log('[FB] boards/m:',am?am.length:'null','boards/e:',ae?ae.length:'null');
     if(am&&am.length>0){data.m=am;LS.set('tix_m',JSON.stringify(am));ok=true;}
     if(ae&&ae.length>0){data.e=ae;LS.set('tix_e',JSON.stringify(ae));ok=true;}
   }catch(e){console.error('Firebase sync error:',e);}
@@ -713,15 +721,8 @@ async function syncFromFirebase(){
 // Слухаємо зміни в реальному часі
 let fbListeners=[];
 function startFirebaseListeners(){
-  // Закриваємо старі
   fbListeners.forEach(es=>{try{es.close();}catch(e){}});
   fbListeners=[];
-  function toArr(d){
-    if(!d)return null;
-    if(Array.isArray(d))return d;
-    if(typeof d==='object')return Object.values(d).filter(Boolean);
-    return null;
-  }
   const esM=fbListen('boards/m',d=>{
     const arr=toArr(d);
     if(arr&&arr.length>0){data.m=arr;LS.set('tix_m',JSON.stringify(arr));if(curBoard==='m'){expandedIds.clear();render();}updateTabLabels();}
