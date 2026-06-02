@@ -646,8 +646,8 @@ function parseTicket(raw){
 
 function isValidTicket(text){
   const clean=text.replace(/[*_]/g,'');
-  // Правильний формат: №0106/1 - М або №0106/2-Е (мінімум 4 цифри до слеша, цифри після, тире, М або Е)
-  return /№\d{4,}\/\d+\s*[-–]\s*[МЕ]/i.test(clean);
+  // №0406/1 - М або №0406/1-Е або №0406/1 - м/е (кирилиця - без /i)
+  return /№\d{4,}\/\d+\s*[-–]\s*[МмЕе]/.test(clean);
 }
 
 function statusLabel(s){return s==='new'?'Без статусу':s==='active'?'В роботі':s==='pause'?'На паузі':'Закрито';}
@@ -777,7 +777,7 @@ async function fetchAllRC(b){
   setProgress(0,'Підключення до Rocket.Chat...');
 
   while(true){
-    const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(cfg.room)}&count=${COUNT}&offset=${offset}&sort=${encodeURIComponent('{"ts":1}')}`;
+    const path=`/api/v1/groups.messages?roomName=${encodeURIComponent(cfg.room)}&count=${COUNT}&offset=${offset}`;
     try{
       const res=await fetch(
         `${rcProxy}?host=${encodeURIComponent(cfg.host)}&path=${encodeURIComponent(path)}`,
@@ -832,8 +832,9 @@ async function reloadAllFromRC(){
   const msgs=await fetchAllRC(curBoard);
   if(!msgs){setProgress(0,'Помилка з\'єднання');setTimeout(()=>pb.classList.remove('show'),3000);return;}
   setProgress(97,'Парсинг заявок...');
-  const seen=new Set();let added=0;
+  const seen=new Set();let added=0;let skipped=0;
   msgs.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+  console.log(`[RC] Всього повідомлень: ${msgs.length}`);
   msgs.forEach(msg=>{
     if(!seen.has(msg._id)&&msg.msg&&msg.msg.trim()){
       const text=msg.msg.trim();
@@ -844,6 +845,7 @@ async function reloadAllFromRC(){
       }
     }
   });
+  console.log(`[RC] Заявок знайдено: ${added}, пропущено: ${skipped}`);
   saveBoard(curBoard);setProgress(100,`Готово! Завантажено ${added} заявок.`);
   document.getElementById('last-sync').textContent=`Перезавантажено о ${fmtTime(Date.now())} (${added})`;
   setTimeout(()=>pb.classList.remove('show'),4000);
